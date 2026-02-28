@@ -1,0 +1,30 @@
+{
+  "name": "RFDF",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "RFDF": {
+        "$path": "src/RFDF",
+
+        "_packages": {
+          "$path": "Packages"
+        }
+      }
+    },
+
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/Server"
+      }
+    },
+
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/Client"
+        }
+      }
+    }
+  }
+}
