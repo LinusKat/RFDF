@@ -32,7 +32,6 @@
 ]]
 
 --!strict
-local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 
 -- // DEPENDANCIES
@@ -44,7 +43,6 @@ local Promise = require(script._packages.Promise)
 
 local CommonTypes = require(script.CommonTypes)
 
-local Versions = require(script.VersionHistory)
 local Interface = require(script._internal.Interface)
 
 local ReplicatedRegistry = require(script._network_packages.ReplicatedRegistry)
@@ -134,223 +132,6 @@ function RFDF.root()
 	return self
 end
 
-function RFDF._rfdf_interface(self: self)
-	local version_history_transform =
-		{ Size = Iris.State(Vector2.new(400, 300)), Position = Iris.State(Vector2.new(361, 222)) }
-	local registry_transform =
-		{ Size = Iris.State(Vector2.new(400, 300)), Position = Iris.State(Vector2.new(361, 526)) }
-	local console_transform = { Size = Iris.State(Vector2.new(400, 603)), Position = Iris.State(Vector2.new(763, 222)) }
-
-	Iris.MenuBar()
-	do
-		Iris.Menu({ `RFDF` })
-		do
-			if Iris.MenuItem({ "Show Registry" }).clicked() then
-				self.Debug.ShowRegistry = not self.Debug.ShowRegistry
-			end
-			if Iris.MenuItem({ "Show Logs" }).clicked() then
-				self.Debug.ShowLogs = not self.Debug.ShowLogs
-			end
-			if Iris.MenuItem({ "Show Version History" }).clicked() then
-				self.Debug.ShowVersionHistory = not self.Debug.ShowVersionHistory
-			end
-
-			if Iris.MenuItem({ "Master Toggle" }).clicked() then
-				self.DebugWindowsMasterToggle = not self.DebugWindowsMasterToggle
-
-				for k, _ in pairs(self.Debug) do
-					if k == "ShowIrisDemoWindow" then
-						continue
-					end
-					self.Debug[k] = self.DebugWindowsMasterToggle
-				end
-			end
-
-			Iris.Separator()
-
-			if Iris.MenuItem({ "Shutdown RFDF" }).clicked() then
-				self:KillRFDFInstance()
-			end
-
-			Iris.Separator()
-
-			if Iris.MenuItem({ "Show Iris Demo Window" }).clicked() then
-				self.Debug.ShowIrisDemoWindow = not self.Debug.ShowIrisDemoWindow
-			end
-		end
-		Iris.End()
-	end
-	Iris.End()
-
-	if self.Debug.ShowVersionHistory then
-		Iris.Window(
-			{ `Version History` },
-			{ size = version_history_transform.Size, position = version_history_transform.Position }
-		)
-		do
-			for index, v in ipairs(Versions) do
-				Iris.CollapsingHeader({ v.Name, index == 1 and true or false })
-
-				Iris.Table({ 3, unpack({ true, true, true, false, false, false, true, true } :: { any }) })
-				do -- // NumColumns | Header | Background | OuterBorder | InnerBorder | FixedWidth | ProportionalWidth | LimitWidth
-					Iris.SetHeaderColumnIndex(1)
-					do
-						Iris.Text({ "Info" })
-						Iris.NextColumn()
-
-						Iris.Text({ "Author" })
-						Iris.NextColumn()
-
-						Iris.Text({ "Date" })
-						Iris.NextColumn()
-					end
-
-					for _, change in ipairs(v.Data) do
-						Iris.Text({ change.Info })
-						Iris.NextColumn()
-
-						Iris.Text({ change.Author })
-						Iris.NextColumn()
-
-						Iris.Text({ change.Date })
-						Iris.NextColumn()
-					end
-				end
-				Iris.End()
-
-				Iris.End()
-			end
-		end
-		Iris.End()
-	end
-
-	if self.Debug.ShowRegistry then
-		Iris.Window(
-			{ `RFDF Registry {RunTypeString}` },
-			{ size = registry_transform.Size, position = registry_transform.Position }
-		)
-		do
-			Iris.CollapsingHeader({ "Registered Services", true :: any })
-			do
-				Iris.Table({ 1, unpack({ true, true, true, false, false, false, true, true } :: any) })
-				do -- // NumColumns | Header | Background | OuterBorder | InnerBorder | FixedWidth | ProportionalWidth | LimitWidth
-					Iris.SetHeaderColumnIndex(1)
-					do
-						Iris.Text({ "Service Name" })
-						Iris.NextColumn()
-					end
-
-					for Service in pairs(raw_middleware) do
-						Iris.Text({ Service })
-						Iris.NextColumn()
-					end
-				end
-				Iris.End()
-			end
-			Iris.End()
-		end
-		Iris.End()
-	end
-
-	if self.Debug.ShowLogs then
-		Iris.Window({ `RFDF Console` }, { size = console_transform.Size, position = console_transform.Position })
-		do
-			local filter = ""
-
-			Iris.SameLine()
-			do
-				if Iris.Button({ "Clear" }).clicked() then
-					self:ClearLogs()
-				end
-
-				if Iris.Button({ "Dump JSON" }).clicked() then
-					local array = {}
-					for _, log in ipairs(self._log_stack) do
-						table.insert(array, {
-							datetime = log.datetime,
-							origin = log.origin,
-							info = log.info,
-							color = log.color and { r = log.color.R, g = log.color.G, b = log.color.B }
-								or { r = 1, g = 1, b = 1 },
-						})
-					end
-
-					print(HttpService:JSONEncode(array))
-				end
-
-				local filter_input = Iris.InputText({ "", "Filter" })
-				local input_field = (filter_input.Instance :: any).InputField
-				filter = input_field.Text
-			end
-			Iris.End()
-
-			Iris.SameLine()
-			do
-				local import = Iris.Button({ "Import Logs" })
-				local text_input = Iris.InputText({ "", "Input" })
-				local input_field = (text_input.Instance :: any).InputField
-
-				if import.clicked() then
-					self:Log("-------------------------------------------------", "PRINT", "Iris Import Logs Start")
-
-					local raw_logs = text_input.state.text.value
-					local json = string.match(raw_logs, "%b[]")
-
-					local logs = HttpService:JSONDecode(json)
-
-					for _, log in ipairs(logs) do
-						local color = log.color and Color3.new(log.color.r, log.color.g, log.color.b)
-							or Color3.new(1, 1, 1)
-						self:Log(log.info, color, log.origin, false, log.datetime)
-					end
-
-					input_field.Text = ""
-
-					self:Log("-------------------------------------------------", "PRINT", "Iris Import Logs End")
-				end
-			end
-			Iris.End()
-
-			Iris.SameLine()
-			do
-				local debug_log = Iris.Button({ "Debug Log" })
-				local text_input = Iris.InputText({ "", "Log" })
-
-				if debug_log.clicked() then
-					self:Log(text_input.state.text.value, "PRINT", "Iris Debug Log")
-				end
-			end
-			Iris.End()
-
-			Iris.Table({ 1, unpack({ true, true, true, false, false, false, true, true } :: { any }) })
-			do -- // NumColumns | Header | Background | OuterBorder | InnerBorder | FixedWidth | ProportionalWidth | LimitWidth
-				for index = #self._log_stack, 1, -1 do
-					local log = self._log_stack[index]
-
-					if not string.match(string.lower(log.info), filter) then
-						continue
-					end
-
-					Iris.PushConfig({ TextColor = log.color })
-					do
-						Iris.Text({
-							string.format("[%s] [%s] %s", tostring(log.datetime), log.origin, log.info),
-						})
-					end
-					Iris.PopConfig()
-					Iris.NextColumn()
-				end
-			end
-			Iris.End()
-		end
-		Iris.End()
-	end
-
-	if self.Debug.ShowIrisDemoWindow then
-		self.Iris.ShowDemoWindow()
-	end
-end
-
 function RFDF._initialize_client(self: self)
 	self.Network = ClientNetwork.new()
 	self.NetworkEndpoint = self.Network.NetworkEndpoint:: any
@@ -361,8 +142,7 @@ function RFDF._initialize_client(self: self)
 	interface:Init()
 
 	self.Iris:Connect(function()
-		interface:Render()
-		self:_rfdf_interface()
+		interface:Render(raw_middleware)
 	end)
 end
 

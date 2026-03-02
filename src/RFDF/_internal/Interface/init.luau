@@ -6,6 +6,8 @@ local CommonTypes = require(ReplicatedStorage.RFDF.CommonTypes)
 local Iris = require(script.Parent.Parent._packages.Iris)
 local CeiveImOverlay = require(script.CeiveImOverlay)
 
+local IrisInterface = require(script.Menus.IrisInterface)
+
 local RFDFInterface = {}
 RFDFInterface.__index = RFDFInterface
 
@@ -32,6 +34,9 @@ function RFDFInterface.Init(self: self)
 	end
 
 	for _, v in ipairs(script.Menus:GetChildren()) do
+		if v == script.Menus.IrisInterface then
+			continue
+		end
 		self:RegisterMenu(require(v))
 	end
 end
@@ -40,7 +45,9 @@ function RFDFInterface.RegisterMenu(self: self, Function: RenderFunction)
 	table.insert(self._display_registry, Function)
 end
 
-function RFDFInterface.Render(self: self)
+function RFDFInterface.Render(self: self, raw_middleware: CommonTypes.Middleware)
+	IrisInterface(self._rfdf, raw_middleware)
+
 	for _, Render in ipairs(self._display_registry) do
 		Render(self._rfdf, Iris, self._overlay)
 	end
