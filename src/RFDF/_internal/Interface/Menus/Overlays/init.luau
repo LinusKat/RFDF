@@ -1,12 +1,11 @@
 --!strict
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
-local IrisTypes = require(ReplicatedStorage.RFDF._packages._Index["linuskat_iris-implot@1.0.4"]["iris-implot"].Types)
-local CeiveImOverlay = require(ReplicatedStorage.RFDF._internal.Interface.CeiveImOverlay)
-local Sift = require(ReplicatedStorage.RFDF._packages.Sift)
+local IrisTypes = require(script.Parent.Parent.Parent.Parent._packages._Index["linuskat_iris-implot@1.0.4"]["iris-implot"].Types)
+local Sift = require(script.Parent.Parent.Parent.Parent._packages.Sift)
+local CeiveImOverlay = require(script.Parent.Parent.CeiveImOverlay)
 
-local Types = require(ReplicatedStorage.RFDF.Types)
+local Types = require(script.Parent.Parent.Parent.Parent.Types)
 
 local RETURN_ROOT_KEY = Enum.KeyCode.F1
 local RETURN_KEY = Enum.KeyCode.F2

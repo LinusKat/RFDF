@@ -11,6 +11,7 @@ local Squash = require(ReplicatedStorage.RFDF._packages.Squash)
 
 local Endpoint = {
     u8id = 1,
+    Tag = "ping",
     DDoS_ProtectionSettings = {
         BATCH_LIMIT = 5,
         EXPECT = nil,

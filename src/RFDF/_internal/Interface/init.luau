@@ -1,10 +1,9 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
 local IrisTypes = require(script.Parent.Parent._packages._Index["linuskat_iris-implot@1.0.4"]["iris-implot"].Types)
-local CommonTypes = require(ReplicatedStorage.RFDF.CommonTypes)
+local CommonTypes = require(script.Parent.Parent.CommonTypes)
 local Iris = require(script.Parent.Parent._packages.Iris)
 local CeiveImOverlay = require(script.CeiveImOverlay)
 

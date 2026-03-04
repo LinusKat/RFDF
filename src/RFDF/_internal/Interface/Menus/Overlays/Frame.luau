@@ -1,7 +1,5 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Stats = game:GetService("Stats")
-
-local CeiveImOverlay = require(ReplicatedStorage.RFDF._internal.Interface.CeiveImOverlay)
+local CeiveImOverlay = require(script.Parent.Parent.Parent.CeiveImOverlay)
 
 return function(_, ImOverlay: CeiveImOverlay.CImOverlay)
     ImOverlay:Text(string.format(`FPS: %.0fms`, 1 / Stats.FrameTime))

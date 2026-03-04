@@ -1,5 +1,4 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local CeiveImOverlay = require(ReplicatedStorage.RFDF._internal.Interface.CeiveImOverlay)
+local CeiveImOverlay = require(script.Parent.Parent.Parent.CeiveImOverlay)
 
 return function(_, ImOverlay: CeiveImOverlay.CImOverlay)
 end
