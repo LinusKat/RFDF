@@ -8,6 +8,7 @@ export type StartupData = {
 export type StartCallback = CommonTypes.StartCallback
 export type InitCallback = CommonTypes.InitCallback
 export type KillCallback = CommonTypes.KillCallback
+export type DebugInterfaceCallback = CommonTypes.DebugInterfaceCallback
 
 export type CommonServiceFunctions = CommonTypes.CommonServiceFunctions
 

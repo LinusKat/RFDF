@@ -11,65 +11,13 @@ export type Version = {
 
 return {
 	{
-		Timestamp = 1769036400,
-		Name = "v2",
+		Timestamp = 1772499000,
+		Name = "v-0.0.0 internal release",
 		Data = {
 			{
-				Info = "Hello [asdh2y9as]",
+				Info = "Initial Release (Endpoint DDoS Protections not implemented yet will be in a future release)",
 				Author = "LinusKat",
-				Date = "1-1-2026",
-			}:: Change,
-			{
-				Info = "World [2d2f]",
-				Author = "LinusKat",
-				Date = "1-1-2026",
-			}:: Change,
-			{
-				Info = "Hello [245]",
-				Author = "LinusKat",
-				Date = "1-1-2026",
-			}:: Change,
-			{
-				Info = "World [f3f]",
-				Author = "LinusKat",
-				Date = "1-1-2026",
-			}:: Change,
-			{
-				Info = "Hello [94ui]",
-				Author = "LinusKat",
-				Date = "1-1-2026",
-			}:: Change,
-		},
-	}:: Version,
-	
-	{
-		Timestamp = 1769036400,
-		Name = "v1",
-		Data = {
-			{
-				Info = "Hello [asdh2y9as]",
-				Author = "LinusKat",
-				Date = "1-1-2026",
-			}:: Change,
-			{
-				Info = "World [2d2f]",
-				Author = "LinusKat",
-				Date = "1-1-2026",
-			}:: Change,
-			{
-				Info = "Hello [245]",
-				Author = "LinusKat",
-				Date = "1-1-2026",
-			}:: Change,
-			{
-				Info = "World [f3f]",
-				Author = "LinusKat",
-				Date = "1-1-2026",
-			}:: Change,
-			{
-				Info = "Hello [94ui]",
-				Author = "LinusKat",
-				Date = "1-1-2026",
+				Date = "3-3-2026",
 			}:: Change,
 		},
 	}:: Version,

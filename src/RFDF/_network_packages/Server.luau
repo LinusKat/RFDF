@@ -1,5 +1,4 @@
 --!strict
-local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
@@ -35,10 +34,10 @@ local Enums = {
 local NetworkEndpoint = {}
 NetworkEndpoint.__index = NetworkEndpoint
 
-function NetworkEndpoint.new(Network: Network, u8id: number, Schema: SquashCursor, DDoS_Settings: DDoS_ProtectionSettings)
+function NetworkEndpoint.new(Network: Network, u8id: number, tag: string, Schema: SquashCursor, DDoS_Settings: DDoS_ProtectionSettings)
     assert(RunService:IsServer(), "Net Server cannot be ran on client.")
 
-    local self = setmetatable({}:: NetworkEndpoint, NetworkEndpoint)
+    local self = setmetatable({}, NetworkEndpoint):: NetworkEndpoint
     self._ddos_protection_settings = Sift.Dictionary.copyDeep(DDoS_Settings)
     self._rcv_history = {}
 
@@ -46,6 +45,7 @@ function NetworkEndpoint.new(Network: Network, u8id: number, Schema: SquashCurso
     
     self._network = Network
     self._u8id = u8id
+    self._tag = tag
 
     self.Enums = Enums
 
@@ -124,16 +124,17 @@ export type NetworkEndpoint = {
 
     _network: Network,
     _u8id: number,
+    _tag: string,
 
     Enums: Enums,
-    OnServerEvent: LemonSignal.Signal,
+    OnServerEvent: any,
 } & typeof(NetworkEndpoint)
 
 local Network = {}
 Network.__index = Network
 
 function Network.new(): Network
-    local self = setmetatable({}:: self, Network)
+    local self = setmetatable({}, Network):: self
     self._registered_endpoints = {}
     
     self._bandwidth_history = {rcv = Memory.new(BANDWIDTH_MEMORY_LENGTH), snd = Memory.new(BANDWIDTH_MEMORY_LENGTH), rcv_calls = {}}
@@ -236,7 +237,7 @@ function Network._flush(self: self)
 
     debug.profilebegin("flush")
 
-    local individual_batches = {}
+    local individual_batches = {}:: {[Player]: {{buffer}}}
 
     for _, payload in ipairs(self._batch) do
         local targets = Players:GetPlayers()
@@ -245,7 +246,7 @@ function Network._flush(self: self)
             targets = payload.Whitelist
         end
 
-        for _, player in ipairs(targets) do
+		for _, player in ipairs(targets:: CommonTypes.Array<Player>) do
             local endpoint_map = individual_batches[player]
             if not endpoint_map then
                 endpoint_map = {}
@@ -303,7 +304,7 @@ export type Network = {
     _previous_flush: number,
     _batch: CommonTypes.Array<{ID: number, Packet: buffer, Type: number, Whitelist: CommonTypes.Array<Player>?}>,
 
-    NetworkEndpoint: NetworkEndpoint,
+    NetworkEndpoint: typeof(NetworkEndpoint),
     Enums: Enums,
 } & typeof(Network)
 type self = Network

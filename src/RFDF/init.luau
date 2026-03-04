@@ -109,32 +109,26 @@ local RFDF = {}
 RFDF.__index = RFDF
 
 function RFDF.root()
-	local self = setmetatable({}:: self, RFDF)
+	local self = setmetatable({}, RFDF):: self
 	self._issues = {}
 
 	self._log_stack = {}
 
 	self._intialized = false
 	self._killed = false
-
-	self.ReplicatedRegistryEndpoint = ReplicatedRegistry:: any
 	
 	self.Iris = Iris
-	self.Debug = {
-		ShowRegistry = false,
-		ShowLogs = false,
-		ShowVersionHistory = false,
-
-		ShowIrisDemoWindow = false,
-	}
-	self.DebugWindowsMasterToggle = false
 
 	return self
 end
 
 function RFDF._initialize_client(self: self)
+	print("rfdf/new/init-client")
+
 	self.Network = ClientNetwork.new()
+
 	self.NetworkEndpoint = self.Network.NetworkEndpoint:: any
+	self.ReplicatedRegistryEndpoint = ReplicatedRegistry:: any
 
 	self.Iris.Init()
 
@@ -147,8 +141,12 @@ function RFDF._initialize_client(self: self)
 end
 
 function RFDF._intialize_server(self: self)
+	print("rfdf/new/init-server")
+
 	self.Network = ServerNetwork.new()
+
 	self.NetworkEndpoint = self.Network.NetworkEndpoint:: any
+	self.ReplicatedRegistryEndpoint = ReplicatedRegistry:: any
 end
 
 function RFDF._register_service(self: self, Name: string, tbl: CommonServiceFunctions)
@@ -339,13 +337,6 @@ export type RFDF = {
 	ReplicatedRegistryEndpoint: ReplicatedRegistry.Endpoint,
 
 	Iris: Iris,
-	Debug: {
-		ShowRegistry: boolean,
-		ShowLogs: boolean,
-		ShowVersionHistory: boolean,
-		ShowIrisDemoWindow: boolean,
-	} & { [string]: boolean },
-	DebugWindowsMasterToggle: boolean,
 } & typeof(RFDF)
 type self = RFDF
 return RFDF

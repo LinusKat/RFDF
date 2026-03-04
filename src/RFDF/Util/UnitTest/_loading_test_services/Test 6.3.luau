@@ -27,9 +27,9 @@ end
 
 function module._init_client(self: self)
     local RFDF = self._RFDF:: RFDF.RFDF & RFDF.ExposeClient
-    local Endpoint = RFDF.NetworkEndpoint.new(RFDF.Network, _NET_PING_ENDPOINT.u8id, _NET_PING_ENDPOINT.Schema)
+    local Endpoint = RFDF.NetworkEndpoint.new(RFDF.Network, _NET_PING_ENDPOINT.u8id, _NET_PING_ENDPOINT.Tag, _NET_PING_ENDPOINT.Schema)
     
-    local RegistryEndpoint = RFDF.ReplicatedRegistryEndpoint.new(self._RFDF, {}, 2)
+    local RegistryEndpoint = RFDF.ReplicatedRegistryEndpoint.new(self._RFDF, {}, "replicated-registry", 2)
 
     local last_rcv = os.clock()
 
@@ -38,7 +38,7 @@ function module._init_client(self: self)
         local rrt = t1 - last_rcv
         last_rcv = t1
         
-        -- RFDF:Log(string.format(`Client -> Server RRT: %f`, rrt), "PRINT", SRC)
+        RFDF:Log(string.format(`server -> client t: %f`, rrt), "PRINT", SRC)
 
         Endpoint:FireServer(...)
     end)
@@ -50,30 +50,32 @@ end
 
 function module._init_server(self: self)
     local RFDF = self._RFDF:: RFDF.RFDF & RFDF.ExposeServer
-    local Endpoint = RFDF.NetworkEndpoint.new(RFDF.Network, _NET_PING_ENDPOINT.u8id, _NET_PING_ENDPOINT.Schema, _NET_PING_ENDPOINT.DDoS_ProtectionSettings)
+    local Ping = RFDF.NetworkEndpoint.new(RFDF.Network, _NET_PING_ENDPOINT.u8id, _NET_PING_ENDPOINT.Tag, _NET_PING_ENDPOINT.Schema, _NET_PING_ENDPOINT.DDoS_ProtectionSettings)
 
-    -- local Registry = {
-        -- ["Number"] = 0,
-    -- }
+    local Registry = {
+        ["Number"] = 0,
+    }
 
-    -- local RegistryEndpoint = RFDF.ReplicatedRegistryEndpoint.new(self._RFDF, Registry, 2)
+    local RegistryEndpoint = RFDF.ReplicatedRegistryEndpoint.new(self._RFDF, Registry, 2, "replicated-registry")
 
-    Endpoint.OnServerEvent:Connect(function(Origin: Player, t0: number)
+    Ping.OnServerEvent:Connect(function(Origin: Player, t0: number)
         local t1 = os.clock()
         local ping = t1 - t0
         RFDF:Log(string.format("RTT: %f", ping), Color3.new(0.984313, 1, 0), SRC)
+        print(string.format("RTT: %f", ping))
 
         task.wait(.25)
-        Endpoint:FireClient(Origin, os.clock())
+        Ping:FireClient(Origin, os.clock())
 
-        -- Registry.Number += 1
-        -- RegistryEndpoint:Push()
+        print("push")
+        Registry.Number += 1
+        RegistryEndpoint:Push()
     end)
 
     local function PlayerAdded(Player: Player)
         task.wait(2)
         RFDF:Log(string.format("Start Pinging: %s", Player.Name), Color3.new(0.984313, 1, 0), SRC)
-        Endpoint:FireClient(Player, os.clock())
+        Ping:FireClient(Player, os.clock())
     end
 
     for _, v in ipairs(Players:GetPlayers()) do PlayerAdded(v) end
@@ -86,6 +88,11 @@ function module.Init(self: self)
     elseif RunService:IsClient() then
         self:_init_client()
     end
+end
+
+function module._debug_interface(self: self, Iris: any)
+    Iris.Window({ "Test 6.3" }); do
+    end; Iris.End()
 end
 
 export type Service = {_RFDF: RFDF} & typeof(module)

@@ -28,7 +28,7 @@ local DebugNode = {}
 DebugNode.__index = DebugNode
 
 function DebugNode.new(Name: string, Render: any)
-    local self = setmetatable({}:: DebugNode, DebugNode)
+    local self = setmetatable({}, DebugNode):: DebugNode
 
     self.Name = Name
 

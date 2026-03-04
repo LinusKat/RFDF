@@ -3,7 +3,7 @@ local Memory = {}
 Memory.__index = Memory
 
 function Memory.new(MemoryLength: number)
-	local self = setmetatable({}:: self, Memory)
+	local self = setmetatable({}, Memory):: self
 	self.Memory = {}
 	self.MemoryLength = MemoryLength
 	

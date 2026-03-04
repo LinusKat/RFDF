@@ -4,7 +4,7 @@ local Players = game:GetService("Players")
 
 local src = script.Parent
 
-local DeepDelta = require(src.Parent._packages.DeepDelta)
+local DeltaCompress = require(src.Parent._packages.DeltaCompress)
 local Squash = require(src.Parent._packages.Squash)
 local Sift = require(src.Parent._packages.Sift)
 
@@ -22,12 +22,9 @@ local SCHEMA = Squash.buffer()
 local Endpoint = {}
 Endpoint.__index = Endpoint
 
---[[
-    HAS TO BE JSON SERIALIZABLE DATA, NO ROBLOX USERDATAS
-]]
-function Endpoint.new(RFDF: RFDF, Registry: Registry, u8id: number)
-    local self = setmetatable({}:: self, Endpoint)
-    self.Endpoint = RFDF.Network.NetworkEndpoint.new(RFDF.Network, u8id, SCHEMA, {
+function Endpoint.new(RFDF: RFDF, Registry: Registry, u8id: number, tag: string)
+    local self = setmetatable({}, Endpoint):: self & (ClientExposed | ServerExposed)
+    self.Endpoint = RFDF.Network.NetworkEndpoint.new(RFDF.Network, u8id, tag, SCHEMA, {
         BATCH_LIMIT = 0,
         EXPECT = nil,
         STRICT = false,
@@ -35,9 +32,9 @@ function Endpoint.new(RFDF: RFDF, Registry: Registry, u8id: number)
     self.Registry = Registry
 
     if IsServer then
-        self:_server_init()
+        (self:: any):_server_init()
     else
-        self:_client_init()
+        (self:: any):_client_init()
     end
 
     return self
@@ -46,43 +43,36 @@ end
 function Endpoint._client_init(self: self & ClientExposed)
     self.OnClientReceive = LemonSignal.new()
 
-    self.Endpoint.OnClientEvent:Connect(function(delta)
-        print(delta)
-        DeepDelta.apply(self.Registry, delta)
+    self.Endpoint.OnClientEvent:Connect(function(delta: buffer)
+        self.Registry = DeltaCompress.applyImmutable(self.Registry, delta)
         self.OnClientReceive:Fire()
     end)
 end
 
-function Endpoint._server_init(self: self & ServerExposed)
-    self._snapshot = DeepDelta.clone(self.Registry)
+function Endpoint._client_added(self: self & ServerExposed, Client: Player)
+    local initial_commit = DeltaCompress.diffImmutable(nil, self.Registry)
+    self.Endpoint:FireClient(Client, initial_commit)
+end
 
+function Endpoint._server_init(self: self & ServerExposed)
     Players.PlayerAdded:Connect(function(...)
         self:_client_added(...)
     end)
 end
 
-function Endpoint._client_added(self: self & ServerExposed, Client: Player)
-    local delta, _ = DeepDelta.diff(self.Registry, self._snapshot)
-    self._snapshot = DeepDelta.clone(self.Registry)
-
-    self.Endpoint:FireClient(Client, delta)
-end
-
 function Endpoint.Push(self: self & ServerExposed)
     assert(IsServer, "Replicated Registry Endpoints on the client are read only")
 
-    local delta, deltas = DeepDelta.diff(
-        self.Registry,
-        self._snapshot
-    )
+    local diff, old = DeltaCompress.diffMutable(self._snapshot, self.Registry)
 
-    if Sift.isEmpty(deltas) then
+    print(diff, old)
+    if not diff then
         return
     end
 
-    self._snapshot = DeepDelta.clone(self.Registry)
+    self._snapshot = old
 
-    self.Endpoint:FireAllClients(delta)
+    self.Endpoint:FireAllClients(diff)
 end
 
 type RFDF = any
@@ -90,12 +80,12 @@ type RFDF = any
 export type Registry = CommonTypes.Dictionary<any, any>
 
 export type ServerExposed = {
-    _snapshot: Registry,
+    _snapshot: any?,
     Endpoint: ServerNetwork.NetworkEndpoint,
 }
 export type ClientExposed = {
     Endpoint: ClientNetwork.NetworkEndpoint,
-    OnClientReceive: LemonSignal.Signal,
+    OnClientReceive: any,
 }
 
 export type Endpoint = {

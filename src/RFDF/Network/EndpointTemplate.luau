@@ -11,12 +11,14 @@ local Squash = require(ReplicatedStorage.RFDF._packages.Squash)
 ]]
 
 local Endpoint = {
+    u8id = 0,
+    Tag = "",
     DDoS_ProtectionSettings = {
         BATCH_LIMIT = 5,
         EXPECT = nil,
         STRICT = false,
-    }:: Server.DDoS_ProtectionSettings,
-    Schema = {}:: Squash.SerDes,
+    },
+    Schema = {},
 }
 
 return Endpoint

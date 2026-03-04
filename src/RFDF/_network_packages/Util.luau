@@ -1,6 +1,6 @@
 local STRING_TO_INSTANCE_IDENTIFIER = string.char(129)
 
-local function GetInstanceFromFullName(fullName: string)
+local function GetInstanceFromFullName(fullName: string): any
 	local route = fullName:split(".")
 	local current = game
 
@@ -15,7 +15,7 @@ local function GetInstanceFromFullName(fullName: string)
 	return current
 end
 
-function RecursivePacketInstanceProcessing(Serialize: boolean, Input: any)
+function RecursivePacketInstanceProcessing(Serialize: boolean, Input: any): any
 	local t = typeof(Input)
 	
 	if not Serialize and t == "string" then

@@ -1,5 +1,4 @@
 --!strict
-local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 
 local src = script.Parent
@@ -22,14 +21,15 @@ local FLUSH_RATE = 1 / 60
 local NetworkEndpoint = {}
 NetworkEndpoint.__index = NetworkEndpoint
 
-function NetworkEndpoint.new(Network: Network, u8id: number, Schema: SquashCursor)
+function NetworkEndpoint.new(Network: Network, u8id: number, tag: string, Schema: SquashCursor)
     assert(RunService:IsClient(), "Net Client cannot be ran on server.")
 
-    local self = setmetatable({}:: NetworkEndpoint, NetworkEndpoint)
+    local self = setmetatable({}, NetworkEndpoint):: NetworkEndpoint
     self._schema = Schema
     
     self._network = Network
     self._u8id = u8id
+    self._tag = tag
 
     self._network:_register_endpoint(u8id, self)
 
@@ -76,23 +76,26 @@ function NetworkEndpoint.FireServer(self: NetworkEndpoint, ...: any)
     self:_send(...)
 end
 
-export type Connection = LemonSignal.Connection
+export type Connection = any
 
 export type NetworkEndpoint = {
     _schema: SquashSerDes,
 
     _network: Network,
     _u8id: number,
+    _tag: string,
 
-    OnClientEvent: LemonSignal.Signal,
+    OnClientEvent: any,
 } & typeof(NetworkEndpoint)
 
 local Network = {}
 Network.__index = Network
 
 function Network.new(): Network
-    local self = setmetatable({}:: self, Network)
-    self._remote = src:FindFirstChild("_com", true)
+    assert(RunService:IsClient(), "Net Client cannot be ran on server.")
+
+    local self = setmetatable({}, Network):: self
+    self._remote = src:FindFirstChild("_com", true):: RemoteEvent
 
     self._registered_endpoints = {}
     
