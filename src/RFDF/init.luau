@@ -214,7 +214,7 @@ function RFDF.LoadServicesFromFolder(self: self, Folder: Folder)
 	end
 	
 	for _, instance: ModuleScript | any in ipairs(Folder:GetChildren()) do
-		if not instance:IsA("ModuleScript") then
+		if not instance:IsA("ModuleScript") or string.match(instance.Name, ".rfdf_ignore") then
 			continue
 		end
 		
