@@ -30,7 +30,7 @@ function RecursivePacketInstanceProcessing(Serialize: boolean, Input: any): any
 	end
 	
 	if t == "table" then
-		for key, value in pairs(Input) do
+		for key, value in Input do
 			Input[key] = RecursivePacketInstanceProcessing(Serialize, value)
 		end
 	end

@@ -39,17 +39,17 @@ function NetworkEndpoint.new(Network: Network, u8id: number, tag: string, Schema
 end
 
 function NetworkEndpoint._rcv(self: NetworkEndpoint, Batch: CommonTypes.Array<buffer>)
-    debug.profilebegin("rcv_endpoint_batch")
-
+	debug.profilebegin("rcv_endpoint_batch")
+	
     for _, packet in ipairs(Batch) do
         debug.profilebegin("deserialize_packet_and_dispatch")
 
-        local cursor = Squash.frombuffer(packet)
-        local raw = self._schema.des(cursor)
+		local cursor = Squash.frombuffer(packet)
+		local tuple_packed = table.pack{self._schema.des(cursor)}
 
-        raw = Util.RecursivePacketInstanceProcessing(false, raw)
+        local raw = Util.RecursivePacketInstanceProcessing(false, tuple_packed[1])
 
-        self.OnClientEvent:Fire(raw)
+        self.OnClientEvent:Fire(table.unpack(raw))
 
         debug.profileend()
     end
@@ -95,7 +95,7 @@ function Network.new(): Network
     assert(RunService:IsClient(), "Net Client cannot be ran on server.")
 
     local self = setmetatable({}, Network):: self
-    self._remote = src:FindFirstChild("_com", true):: RemoteEvent
+    self._remote = src:WaitForChild("_com", 100):: RemoteEvent
 
     self._registered_endpoints = {}
     
@@ -132,10 +132,10 @@ function Network._on_receive(self: self, ...)
     debug.profilebegin("deserialize_batch")
 
     local batch_cursor = Squash.frombuffer(...)
-    local events = NetworkInternalSchemas.Batch.des(batch_cursor)
-
-    for key, sub_batch in ipairs(events) do
-        local endpoint = self._registered_endpoints[key]
+	local events = NetworkInternalSchemas.Batch.des(batch_cursor)
+	
+    for key, sub_batch in pairs(events) do
+		local endpoint = self._registered_endpoints[key]
         if not endpoint then continue end
 
         endpoint:_rcv(sub_batch)
@@ -188,7 +188,7 @@ function Network._flush(self: self)
     local snd_bytes = RemotePacketSizeCounter.GetPacketSize{RunContext = "Client", RemoteType = "RemoteEvent", PacketData = {serialized}}
     self._bandwidth_history.snd:Feed(snd_bytes)
 
-    self._remote:FireServer(serialized)
+	self._remote:FireServer(serialized)
 
     local rcv_bytes = 0
     for _, v in ipairs(self._bandwidth_history.rcv_calls) do

@@ -17,13 +17,15 @@ local ClientNetwork = require(src.Parent._network_packages.Client)
 
 local IsServer = RunService:IsServer()
 
-local SCHEMA = Squash.buffer()
+local SCHEMA = Squash.opt(Squash.buffer())
 
 local Endpoint = {}
 Endpoint.__index = Endpoint
 
-function Endpoint.new(RFDF: RFDF, Registry: Registry, u8id: number, tag: string)
-    local self = setmetatable({}, Endpoint):: self & (ClientExposed | ServerExposed)
+function Endpoint.new(RFDF: RFDF, Registry: Registry, u8id: number, tag: string, allow_write: boolean): Endpoint
+	local self = setmetatable({}, Endpoint):: any
+	self._allow_write = allow_write
+	
     self.Endpoint = RFDF.Network.NetworkEndpoint.new(RFDF.Network, u8id, tag, SCHEMA, {
         BATCH_LIMIT = 0,
         EXPECT = nil,
@@ -32,64 +34,102 @@ function Endpoint.new(RFDF: RFDF, Registry: Registry, u8id: number, tag: string)
     self.Registry = Registry
 
     if IsServer then
-        (self:: any):_server_init()
+        self:_server_init()
     else
-        (self:: any):_client_init()
+        self:_client_init()
     end
 
     return self
 end
 
-function Endpoint._client_init(self: self & ClientExposed)
-    self.OnClientReceive = LemonSignal.new()
-
-    self.Endpoint.OnClientEvent:Connect(function(delta: buffer)
-        self.Registry = DeltaCompress.applyImmutable(self.Registry, delta)
-        self.OnClientReceive:Fire()
-    end)
+function Endpoint._send_initial(self: self, Client: Player?)
+	local initial_commit = DeltaCompress.diffImmutable(nil, self.Registry)
+	
+	if IsServer then
+		self.Endpoint:FireClient(Client, initial_commit)
+	elseif not IsServer then
+		self.Endpoint:FireServer(initial_commit)
+	end
 end
 
-function Endpoint._client_added(self: self & ServerExposed, Client: Player)
-    local initial_commit = DeltaCompress.diffImmutable(nil, self.Registry)
-    self.Endpoint:FireClient(Client, initial_commit)
+function Endpoint._apply_delta(self: self, delta: buffer)
+	local diff = DeltaCompress.applyImmutable(self.Registry, delta)
+	for k, v in pairs(diff) do
+		self.Registry[k] = v
+	end
 end
 
-function Endpoint._server_init(self: self & ServerExposed)
+function Endpoint._client_init(self: self)
+    self.OnReceive = LemonSignal.new()
+
+	self.Endpoint.OnClientEvent:Connect(function(delta: buffer?)
+		print(delta)
+		if not delta then
+			self:_send_initial()
+			return
+		end
+		if not self._allow_write then
+			return
+		end
+		
+		self:_apply_delta(delta)
+		self.OnReceive:Fire()
+	end)
+	
+	self:_send_initial()
+end
+
+function Endpoint._server_init(self: self)
+	self.Endpoint.OnServerEvent:Connect(function(Origin: Player, delta: buffer?)
+		if not delta then
+			self:_send_initial(Origin)
+			return
+		end
+		if not self._allow_write then
+			return
+		end
+		
+		self:_apply_delta(delta)
+		self.OnReceive:Fire()
+	end)
+	
     Players.PlayerAdded:Connect(function(...)
-        self:_client_added(...)
-    end)
+		self:_send_initial(...)
+	end)
 end
 
-function Endpoint.Push(self: self & ServerExposed)
-    assert(IsServer, "Replicated Registry Endpoints on the client are read only")
+function Endpoint.Fetch(self: self)
+	self.Endpoint:FireServer(nil)
+end
 
+function Endpoint.Push(self: self)
     local diff, old = DeltaCompress.diffMutable(self._snapshot, self.Registry)
 
-    print(diff, old)
     if not diff then
         return
     end
 
     self._snapshot = old
 
-    self.Endpoint:FireAllClients(diff)
+	if IsServer then
+		self.Endpoint:FireAllClients(diff)
+	elseif not IsServer then
+		self.Endpoint:FireServer(diff)
+	end
 end
 
 type RFDF = any
 
 export type Registry = CommonTypes.Dictionary<any, any>
 
-export type ServerExposed = {
-    _snapshot: any?,
-    Endpoint: ServerNetwork.NetworkEndpoint,
-}
-export type ClientExposed = {
-    Endpoint: ClientNetwork.NetworkEndpoint,
-    OnClientReceive: any,
-}
-
 export type Endpoint = {
-    Registry: Registry,
+	_snapshot: any?,
+	_allow_write: boolean,
+	
+	Endpoint: any,
+	
+	Registry: Registry,
+	OnReceive: any,
 } & typeof(Endpoint)
 type self = Endpoint
 

@@ -1,7 +1,7 @@
 --!strict
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Squash = require(ReplicatedStorage.RFDF._packages.Squash)
+local Squash = require(script.Parent.Parent._packages.Squash)
 
 --[[
         BATCH_LIMIT: number,                 -- // We limit the batched data the player can send (reverse the batch deserialize up to the point of the batch limit)

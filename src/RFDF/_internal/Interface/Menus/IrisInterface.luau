@@ -322,6 +322,10 @@ return function(self, raw_middleware: CommonTypes.Middleware)
 
 		Initialised = true
 	end
+	
+	for _, v in ipairs(Iris.Internal._rootInstance:GetChildren()) do
+		v:AddTag("FreecamIgnoreDisable")
+	end
 
 	MenuBar(Iris, self)
 

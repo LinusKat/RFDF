@@ -57,9 +57,9 @@ function NetworkEndpoint.new(Network: Network, u8id: number, tag: string, Schema
 end
 
 function NetworkEndpoint._rcv(self: NetworkEndpoint, Origin: Player, Batch: CommonTypes.Array<buffer>)
-    debug.profilebegin("rcv_endpoint_batch")
-
-    for k, packet in ipairs(Batch) do
+	debug.profilebegin("rcv_endpoint_batch")
+	
+	for k, packet in ipairs(Batch) do
         debug.profilebegin("deserialize_packet_and_dispatch")
 
         local cursor = Squash.frombuffer(packet)
@@ -76,12 +76,13 @@ function NetworkEndpoint._rcv(self: NetworkEndpoint, Origin: Player, Batch: Comm
 end
 
 function NetworkEndpoint._send(self: NetworkEndpoint, BroadcastType: number, Whitelist: CommonTypes.Array<Player>?, ...)
-    local raw = table.unpack(Util.RecursivePacketInstanceProcessing(true, {...}))
+	local tuple_packed = table.pack{...}
+	local raw = Util.RecursivePacketInstanceProcessing(true, tuple_packed[1])
 
     local cursor = Squash.cursor()
-    self._schema.ser(cursor, raw)
+    self._schema.ser(cursor, table.unpack(raw))
 
-    local serialized = Squash.tobuffer(cursor)
+	local serialized = Squash.tobuffer(cursor)
 
     table.insert(self._network._batch, {
         ID = self._u8id,
@@ -189,9 +190,9 @@ function Network._on_receive(self: self, Origin: Player, ...)
     debug.profilebegin("deserialize_batch")
 
     local batch_cursor = Squash.frombuffer(...)
-    local events = NetworkInternalSchemas.Batch.des(batch_cursor)
-
-    for key, sub_batch in ipairs(events) do
+	local events = NetworkInternalSchemas.Batch.des(batch_cursor)
+	
+	for key, sub_batch in pairs(events) do
         local endpoint = self._registered_endpoints[key]
         if not endpoint then continue end
 

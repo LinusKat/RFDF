@@ -1,7 +1,7 @@
 --[[
 	Started working on:
 		Ridiculously - Fast - Debuggable - Framework [RFDF]
-		2-12-2025 [DD/MM/YYYY]
+		02-12-2025 [DD/MM/YYYY]
 	
 	Rules of coding for producing RFDF
 		1: MAX OF 3 INDENTS WITHIN FUNCTIONS (ONLY EXCEPTION BEING IRIS)
@@ -34,7 +34,7 @@
 --!strict
 local RunService = game:GetService("RunService")
 
--- // DEPENDANCIES
+-- // Dependencies
 local IrisTypes = require(script._packages._Index["linuskat_iris-implot@1.0.4"]["iris-implot"].Types)
 local Iris = require(script._packages.Iris)
 
@@ -48,17 +48,18 @@ local Interface = require(script._internal.Interface)
 local ReplicatedRegistry = require(script._network_packages.ReplicatedRegistry)
 local ServerNetwork = require(script._network_packages.Server)
 local ClientNetwork = require(script._network_packages.Client)
-local Memory = require(script.Util.Memory)
+local Memory = require("@self/Util/Memory")
 
 -- // VARIABLES
 local IsServer = RunService:IsServer()
 local RunTypeString = IsServer and "Server" or "Client"
 
 local RFDF_SETTINGS = {
-	LOAD_SERVICE_TIMEOUT = 5,
+	LOAD_SERVICE_TIMEOUT = 15,
 	KILL_SERVICE_TIMEOUT = 1,
 
 	LOG_HISTORY = 1000,
+	LOG_VERBOSE = true,
 }
 
 local ERROR_MESSAGES = {
@@ -81,7 +82,7 @@ local ERROR_MESSAGES = {
 
 	-- // @REGISTER SERVICE
 	REGISTER_SERVICE_NOT_TABLE = "Register Service Invalid type of tbl",
-	REGISTER_SERVICE_MISSING_START_FUNCTION = "Register Service Invalid type of tbl.Start",
+	REGISTER_SERVICE_MISSING_START_FUNCTION = "Register Service Invalid type of tbl.new",
 
 	SERVICE_AWAIT_TIMEOUT = "Tried to start or intialize service however took longer than allowed",
 
@@ -122,7 +123,7 @@ function RFDF.root()
 	return self
 end
 
-function RFDF._initialize_client(self: self)
+function RFDF._initialize_client(self: self & ClientExposed)
 	print("rfdf/new/init-client")
 
 	self.Network = ClientNetwork.new()
@@ -140,7 +141,7 @@ function RFDF._initialize_client(self: self)
 	end)
 end
 
-function RFDF._intialize_server(self: self)
+function RFDF._intialize_server(self: self & ServerExposed)
 	print("rfdf/new/init-server")
 
 	self.Network = ServerNetwork.new()
@@ -152,18 +153,22 @@ end
 function RFDF._register_service(self: self, Name: string, tbl: CommonServiceFunctions)
 	assert(typeof(tbl) == "table", FormatDirtyLog(ERROR_MESSAGES.REGISTER_SERVICE_NOT_TABLE))
 	assert(
-		typeof(tbl.Start) == "function",
+		typeof(tbl.new) == "function",
 		FormatDirtyLog(ERROR_MESSAGES.REGISTER_SERVICE_MISSING_START_FUNCTION)
 	)
 
-	local started_service = tbl.Start{RFDF = self}
+	local started_service = tbl.new{RFDF = self}
 	raw_middleware[Name] = started_service
 
 	return started_service
 end
 
 function RFDF._init_service(self: self, started_service: CommonServiceFunctions)
-	assert(typeof(started_service.Init) == "function", ERROR_MESSAGES.SERVICE_MISSING_INIT_FUNCTION)
+	--assert(typeof(started_service.Init) == "function", ERROR_MESSAGES.SERVICE_MISSING_INIT_FUNCTION)
+	if typeof(started_service.Init) ~= "function" then
+		return print(ERROR_MESSAGES.SERVICE_MISSING_INIT_FUNCTION)
+	end
+	
 	started_service:Init()
 end
 
@@ -184,13 +189,17 @@ end
 
 -- // SERVICE FUNCTIONS
 function RFDF.RegisterService(self: self, Module: ModuleScript)
+	self:Log(string.format("Attempting to create service instance: %s", Module.Name), "WARNING", "RFDF")
+	
 	return Promise.new(function(resolve)
 		local started_service = self:_register_service(Module.Name, require(Module) :: CommonServiceFunctions)
 		resolve(started_service)
 	end)
 end
 
-function RFDF.InitializeService(self: self, started_service: CommonServiceFunctions)
+function RFDF.InitializeService(self: self, name: string, started_service: CommonServiceFunctions)
+	self:Log(string.format("Attempting to initialize service instance: %s", name), "WARNING", "RFDF")
+	
 	return Promise.new(function(resolve)
 		self:_init_service(started_service)
 		resolve()
@@ -207,9 +216,9 @@ end
 function RFDF.LoadServicesFromFolder(self: self, Folder: Folder)
 	local function catch_load_issue(err)
 		if Promise.Error.isKind(err, Promise.Error.Kind.TimedOut) then
-			self:Log(FormatDirtyLog(ERROR_MESSAGES.SERVICE_AWAIT_TIMEOUT), "WARNING")
+			self:Log(FormatDirtyLog(ERROR_MESSAGES.SERVICE_AWAIT_TIMEOUT), "WARNING", "RFDF")
 		else
-			self:Log(tostring(err), "ERROR")
+			self:Log(tostring(err), "ERROR", "RFDF")
 		end
 	end
 	
@@ -223,8 +232,8 @@ function RFDF.LoadServicesFromFolder(self: self, Folder: Folder)
 			:catch(catch_load_issue)
 	end
 	
-	for _, started_service: CommonServiceFunctions in pairs(raw_middleware) do
-		self:InitializeService(started_service)
+	for name, started_service: CommonServiceFunctions in pairs(raw_middleware) do
+		self:InitializeService(name, started_service)
 			:timeout(RFDF_SETTINGS.LOAD_SERVICE_TIMEOUT)
 			:catch(catch_load_issue)
 	end
@@ -237,7 +246,7 @@ function RFDF.KillRFDFInstance(self: self)
 		self:KillService(service)
 			:timeout(RFDF_SETTINGS.KILL_SERVICE_TIMEOUT)
 			:catch(function(err)
-				self:Log(tostring(err), "ERROR")
+				self:Log(tostring(err), "ERROR", "RFDF")
 			end)
 	end
 	
@@ -285,6 +294,10 @@ function RFDF.Log(self: self, info: string, color: LogColor?, origin: string?, i
 	if is_issue then
 		table.insert(self._issues, log)
 	end
+	
+	if RFDF_SETTINGS.LOG_VERBOSE then
+		print(string.format("%s %s %s %s", origin or "", info, tostring(is_issue), tostring(color)))
+	end
 end
 
 -- // PRIVATE TYPES
@@ -301,13 +314,23 @@ type Memory = Memory.Memory
 export type SquashSerDes = any--Squash.SerDes
 export type SquashCursor = any--Squash.Cursor
 
-export type ExposeClient = {
+export type ReplicatedRegistryServerEndpoint = ReplicatedRegistry.Endpoint & ReplicatedRegistry.ServerExposed
+export type ReplicatedRegistryClientEndpoint = ReplicatedRegistry.Endpoint & ReplicatedRegistry.ClientExposed
+export type ServerNetworkEndpoint = ServerNetwork.NetworkEndpoint
+export type ClientNetworkEndpoint = ClientNetwork.NetworkEndpoint
+
+export type ServerReplicatedRegistryEndpoint = ReplicatedRegistry.Endpoint & ReplicatedRegistry.ServerExposed
+export type ClientReplicatedRegistryEndpoint = ReplicatedRegistry.Endpoint & ReplicatedRegistry.ClientExposed
+
+export type ClientExposed = {
 	Network: ClientNetwork.Network,
 	NetworkEndpoint: ClientNetwork.NetworkEndpoint,
+	ReplicatedRegistryEndpoint: ClientReplicatedRegistryEndpoint,
 }
-export type ExposeServer = {
+export type ServerExposed = {
 	Network: ServerNetwork.Network,
 	NetworkEndpoint: ServerNetwork.NetworkEndpoint,
+	ReplicatedRegistryEndpoint: ServerReplicatedRegistryEndpoint,
 }
 
 export type LogColor = Color3 | "ERROR" | "WARNING" | "PRINT" | string
@@ -331,12 +354,13 @@ export type RFDF = {
 	_killed: boolean,
 
 	_init_time: number?,
-
-	Network: ServerNetwork.Network | ClientNetwork.Network,
-	NetworkEndpoint: ClientNetwork.NetworkEndpoint | ServerNetwork.NetworkEndpoint,
-	ReplicatedRegistryEndpoint: ReplicatedRegistry.Endpoint,
+	
+	Network: ClientNetwork.Network | ServerNetwork.Network,
+	NetworkEndpoint: ServerNetworkEndpoint | ClientNetworkEndpoint,
+	ReplicatedRegistryEndpoint: ServerReplicatedRegistryEndpoint | ClientReplicatedRegistryEndpoint,
 
 	Iris: Iris,
 } & typeof(RFDF)
 type self = RFDF
+
 return RFDF

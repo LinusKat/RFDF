@@ -26,11 +26,14 @@ function RFDFInterface.new(RFDF: any)
 	local overlay = Instance.new("ScreenGui")
 	overlay.Parent = Players.LocalPlayer.PlayerGui
 	overlay.IgnoreGuiInset = false
+	overlay.Name = "ImOverlay"
+	
+	overlay:AddTag("FreecamIgnoreDisable")
 	
 	self._overlay.BackFrame.Parent = overlay
 
-	self._interface_visible = RunService:IsStudio()
-	self._overlay_visible = RunService:IsStudio()
+	self._interface_visible = true --RunService:IsStudio()
+	self._overlay_visible = true --RunService:IsStudio()
 
 	return self
 end

@@ -26,7 +26,7 @@ function module.Start(StartupData: StartupData)
 end
 
 function module._init_client(self: self)
-    local RFDF = self._RFDF:: RFDF.RFDF & RFDF.ExposeClient
+    local RFDF = self._RFDF:: RFDF.RFDF & RFDF.ClientExposed
     local Endpoint = RFDF.NetworkEndpoint.new(RFDF.Network, _NET_PING_ENDPOINT.u8id, _NET_PING_ENDPOINT.Tag, _NET_PING_ENDPOINT.Schema)
     
     local RegistryEndpoint = RFDF.ReplicatedRegistryEndpoint.new(self._RFDF, {}, "replicated-registry", 2)
@@ -49,7 +49,7 @@ function module._init_client(self: self)
 end
 
 function module._init_server(self: self)
-    local RFDF = self._RFDF:: RFDF.RFDF & RFDF.ExposeServer
+    local RFDF = self._RFDF:: RFDF.RFDF & RFDF.ServerExposed
     local Ping = RFDF.NetworkEndpoint.new(RFDF.Network, _NET_PING_ENDPOINT.u8id, _NET_PING_ENDPOINT.Tag, _NET_PING_ENDPOINT.Schema, _NET_PING_ENDPOINT.DDoS_ProtectionSettings)
 
     local Registry = {
