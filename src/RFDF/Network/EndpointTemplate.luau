@@ -13,8 +13,8 @@ local Squash = require(ReplicatedStorage.RFDF._packages.Squash)
         EXPECT: ((...: any) -> boolean?)?,   -- // Return true if deserialized data is correct
         STRICT: boolean,                     -- // Determines if we kick the player if the deserialized data is not what we expected.
     
-	ClientAllowWrite -- // only add if its a registry, when true client can write to server data
-	ServerAllowWrite -- // only add if its a registry, when true server can write to client data
+	ClientAllowWrite -- // only add if its a registry, when true server can write to client data
+	ServerAllowWrite -- // only add if its a registry, when true client can write to server data
 	
 	Timeout -- only add if its a remote function, promise timeout after this amount of time seconds
 	
@@ -26,12 +26,6 @@ local Squash = require(ReplicatedStorage.RFDF._packages.Squash)
 local Endpoint = {
 	u8id = 0,
 	Tag = script.Name,
-
-	DDoS_ProtectionSettings = {
-		BATCH_LIMIT = 5,
-		EXPECT = nil,
-		STRICT = false,
-	},
 
 	ClientAllowWrite = nil,
 	ServerAllowWrite = nil,
