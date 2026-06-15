@@ -25,7 +25,7 @@ local Squash = require(ReplicatedStorage.RFDF._packages.Squash)
 
 local Endpoint = {
 	u8id = 0,
-	Tag = "",
+	Tag = script.Name,
 
 	DDoS_ProtectionSettings = {
 		BATCH_LIMIT = 5,
