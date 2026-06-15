@@ -16,20 +16,39 @@ local Util = require(src.Util)
 
 local LemonSignal = require(src.Parent._packages.LemonSignal)
 
-local BANDWIDTH_MEMORY_LENGTH = 60
-local FLUSH_RATE = 1 / 60
+local RateLimit = require(script.Parent.RateLimit)
 
-local MAXIMUM_DATA_SIZE = 10 * 1024
+const BANDWIDTH_MEMORY_LENGTH = 60
+const FLUSH_RATE = 1 / 60
 
-local BROADCAST_TYPE_ENUM = {
+const MAXIMUM_DATA_SIZE = 10 * 1024
+
+const BROADCAST_TYPE_ENUM = {
     ALL_CLIENTS = 1,
     PRIVATE = 2,
     WHITELIST = 3,
 }
 
-local Enums = {
+const Enums = {
     BROADCAST_TYPE_ENUM = BROADCAST_TYPE_ENUM,
 }
+
+const VERBOSE = false
+
+local print_limit = RateLimit(5, .04)
+local raw_print = print
+
+const function print(...: any)
+	if not VERBOSE then return end
+	if not print_limit() then return end
+	raw_print(...)
+end
+
+const function print_cursor(cursor: any)
+	if not VERBOSE then	return end
+	if not print_limit() then return end
+	Squash.print(cursor)
+end
 
 local NetworkEndpoint = {}
 NetworkEndpoint.__index = NetworkEndpoint
@@ -49,9 +68,9 @@ function NetworkEndpoint.new(Network: Network, u8id: number, tag: string, Schema
 
     self.Enums = Enums
 
-    self._network:_register_endpoint(u8id, self)
+    self._network:_register_endpoint(tag, u8id, self)
 
-    self.OnServerEvent = LemonSignal.new()
+	self.OnServerEvent = LemonSignal.new()
 
     return self
 end
@@ -62,12 +81,20 @@ function NetworkEndpoint._rcv(self: NetworkEndpoint, Origin: Player, Batch: Comm
 	for k, packet in ipairs(Batch) do
         debug.profilebegin("deserialize_packet_and_dispatch")
 
-        local cursor = Squash.frombuffer(packet)
-        local raw = self._schema.des(cursor)
-
-        raw = Util.RecursivePacketInstanceProcessing(false, raw)
-
-        self.OnServerEvent:Fire(Origin, raw)
+		local cursor = Squash.frombuffer(packet)
+		print_cursor(cursor)
+		local raw = {self._schema.des(cursor)}
+		print(raw)
+		
+		local processed = Util.RecursivePacketInstanceProcessing(false, raw)
+		print(processed)
+		
+		print("ok")
+		print("fire")
+		task.spawn(function()
+			self.OnServerEvent:Fire(Origin, table.unpack(processed))
+		end)
+		print("done")
 
         debug.profileend()
     end
@@ -76,13 +103,14 @@ function NetworkEndpoint._rcv(self: NetworkEndpoint, Origin: Player, Batch: Comm
 end
 
 function NetworkEndpoint._send(self: NetworkEndpoint, BroadcastType: number, Whitelist: CommonTypes.Array<Player>?, ...)
-	local tuple_packed = table.pack{...}
-	local raw = Util.RecursivePacketInstanceProcessing(true, tuple_packed[1])
+	local raw = Util.RecursivePacketInstanceProcessing(true, {...})
 
     local cursor = Squash.cursor()
     self._schema.ser(cursor, table.unpack(raw))
 
 	local serialized = Squash.tobuffer(cursor)
+	print_cursor(cursor)
+	print(serialized)
 
     table.insert(self._network._batch, {
         ID = self._u8id,
@@ -117,7 +145,7 @@ export type DDoS_ProtectionSettings = {
     STRICT: boolean,
 }
 
-export type NetworkEndpoint = {
+export type NetworkEndpoint = typeof(NetworkEndpoint) & {
     _ddos_protection_settings: DDoS_ProtectionSettings,
     _rcv_history: CommonTypes.Dictionary<Player, {Tick: number, Size: number}>,
 
@@ -129,7 +157,7 @@ export type NetworkEndpoint = {
 
     Enums: Enums,
     OnServerEvent: any,
-} & typeof(NetworkEndpoint)
+}
 
 local Network = {}
 Network.__index = Network
@@ -161,7 +189,9 @@ function Network._initialize_server(self: self)
    end
 
    self._remote.OnServerEvent:Connect(function(Origin: Player, ...)
-        debug.profilebegin("RFDF_Net_server/rcv")
+		debug.profilebegin("RFDF_Net_server/rcv")
+		
+		print("net-rcv from:", Origin)
 
         local bucket = {...}
         for _, v in ipairs(bucket) do
@@ -169,7 +199,8 @@ function Network._initialize_server(self: self)
             Origin:Kick("RFDF/Net/BATCH CONTAINS NON BUFFER TYPES")
         end
 
-        local bytes = RemotePacketSizeCounter.GetPacketSize{RunContext = "Client", RemoteType = "RemoteEvent", PacketData = {...}}
+		local bytes = RemotePacketSizeCounter.GetPacketSize{RunContext = "Client", RemoteType = "RemoteEvent", PacketData = {...}}
+		print(bytes)
         if bytes >= MAXIMUM_DATA_SIZE then
             Origin:Kick("RFDF/Net/DATA SIZE EXCEEDS LIMIT")
         end
@@ -189,8 +220,10 @@ end
 function Network._on_receive(self: self, Origin: Player, ...)
     debug.profilebegin("deserialize_batch")
 
-    local batch_cursor = Squash.frombuffer(...)
+	local batch_cursor = Squash.frombuffer(...)
+	print_cursor(batch_cursor)
 	local events = NetworkInternalSchemas.Batch.des(batch_cursor)
+	print(events)
 	
 	for key, sub_batch in pairs(events) do
         local endpoint = self._registered_endpoints[key]
@@ -202,17 +235,17 @@ function Network._on_receive(self: self, Origin: Player, ...)
     debug.profileend()
 end
 
-function Network._register_endpoint(self: self, ID: number, Endpoint: NetworkEndpoint)
-    assert(self._registered_endpoints[ID] == nil, string.format("Endpoint already exists at ID: %s", tostring(ID)))
+function Network._register_endpoint(self: self, Tag: string, u8id: number, Endpoint: NetworkEndpoint)
+	assert(self._registered_endpoints[u8id] == nil, string.format("Endpoint already exists at ID: %s creation tag: %s", tostring(u8id), Tag))
     assert(
-        typeof(ID) == "number"
-        and ID % 1 == 0
-        and ID >= 0
-        and ID <= 255,
+        typeof(u8id) == "number"
+        and u8id % 1 == 0
+        and u8id >= 0
+        and u8id <= 255,
         "ID must be an unsigned 8-bit integer (0-255)"
     )
 
-    self._registered_endpoints[ID] = Endpoint
+    self._registered_endpoints[u8id] = Endpoint
 end
 
 function Network._on_heartbeat(self: self, _: number)
@@ -221,7 +254,8 @@ function Network._on_heartbeat(self: self, _: number)
     local t = tick()
     local do_flush = (t - self._previous_flush) >= FLUSH_RATE
 
-    if do_flush then
+	if do_flush then
+		--print("flush")
         self:_flush()
         self._previous_flush = t
 

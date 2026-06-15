@@ -15,8 +15,27 @@ local Util = require(src.Util)
 
 local LemonSignal = require(src.Parent._packages.LemonSignal)
 
-local BANDWIDTH_MEMORY_LENGTH = 60
-local FLUSH_RATE = 1 / 60
+local RateLimit = require(script.Parent.RateLimit)
+
+const BANDWIDTH_MEMORY_LENGTH = 60
+const FLUSH_RATE = 1 / 60
+
+const VERBOSE = false
+
+local print_limit = RateLimit(5, .04)
+local raw_print = print
+
+const function print(...: any)
+	if not VERBOSE then return end
+	if not print_limit() then return end
+	raw_print(...)
+end
+
+const function print_cursor(cursor: any)
+	if not VERBOSE then	return end
+	if not print_limit() then return end
+	Squash.print(cursor)
+end
 
 local NetworkEndpoint = {}
 NetworkEndpoint.__index = NetworkEndpoint
@@ -29,11 +48,11 @@ function NetworkEndpoint.new(Network: Network, u8id: number, tag: string, Schema
     
     self._network = Network
     self._u8id = u8id
-    self._tag = tag
+	self._tag = tag
 
-    self._network:_register_endpoint(u8id, self)
+	self._network:_register_endpoint(tag, u8id, self)
 
-    self.OnClientEvent = LemonSignal.new()
+	self.OnClientEvent = LemonSignal.new()
 
     return self
 end
@@ -44,12 +63,22 @@ function NetworkEndpoint._rcv(self: NetworkEndpoint, Batch: CommonTypes.Array<bu
     for _, packet in ipairs(Batch) do
         debug.profilebegin("deserialize_packet_and_dispatch")
 
+		print(packet)
 		local cursor = Squash.frombuffer(packet)
-		local tuple_packed = table.pack{self._schema.des(cursor)}
-
-        local raw = Util.RecursivePacketInstanceProcessing(false, tuple_packed[1])
-
-        self.OnClientEvent:Fire(table.unpack(raw))
+		print_cursor(cursor)
+		local raw = {self._schema.des(cursor)}
+		print(raw)
+		
+		local processed = Util.RecursivePacketInstanceProcessing(false, raw)
+		print(processed)
+		print(table.unpack(processed))
+	
+		print("ok")
+		print("fire")
+		task.spawn(function()
+			self.OnClientEvent:Fire(table.unpack(processed))
+		end)
+		print("done")
 
         debug.profileend()
     end
@@ -58,16 +87,20 @@ function NetworkEndpoint._rcv(self: NetworkEndpoint, Batch: CommonTypes.Array<bu
 end
 
 function NetworkEndpoint._send(self: NetworkEndpoint, ...)
-    local raw = table.unpack(Util.RecursivePacketInstanceProcessing(true, {...}))
+	local raw = Util.RecursivePacketInstanceProcessing(true, {...})
+	print(...)
+	print(raw)
 
-    local cursor = Squash.cursor()
-    self._schema.ser(cursor, raw)
+	local cursor = Squash.cursor()
+    self._schema.ser(cursor, table.unpack(raw))
 
-    local serialized = Squash.tobuffer(cursor)
-
+	local serialized = Squash.tobuffer(cursor)
+	print_cursor(cursor)
+	print(serialized)
+	
     if not self._network._batch[self._u8id] then
         self._network._batch[self._u8id] = {}
-    end
+	end
     
     table.insert(self._network._batch[self._u8id], serialized)
 end
@@ -78,7 +111,7 @@ end
 
 export type Connection = any
 
-export type NetworkEndpoint = {
+export type NetworkEndpoint = typeof(NetworkEndpoint) & {
     _schema: SquashSerDes,
 
     _network: Network,
@@ -86,7 +119,7 @@ export type NetworkEndpoint = {
     _tag: string,
 
     OnClientEvent: any,
-} & typeof(NetworkEndpoint)
+}
 
 local Network = {}
 Network.__index = Network
@@ -129,10 +162,13 @@ function Network._initialize_client(self: self)
 end
 
 function Network._on_receive(self: self, ...)
-    debug.profilebegin("deserialize_batch")
+	debug.profilebegin("deserialize_batch")
+	
+	print("net-rcv")
 
     local batch_cursor = Squash.frombuffer(...)
 	local events = NetworkInternalSchemas.Batch.des(batch_cursor)
+	print(events)
 	
     for key, sub_batch in pairs(events) do
 		local endpoint = self._registered_endpoints[key]
@@ -144,8 +180,8 @@ function Network._on_receive(self: self, ...)
     debug.profileend()
 end
 
-function Network._register_endpoint(self: self, u8id: number, Endpoint: NetworkEndpoint)
-    assert(self._registered_endpoints[u8id] == nil, string.format("Endpoint already exists at ID: %s", tostring(u8id)))
+function Network._register_endpoint(self: self, Tag: string, u8id: number, Endpoint: NetworkEndpoint)
+    assert(self._registered_endpoints[u8id] == nil, string.format("Endpoint already exists at ID: %s creation tag: %s", tostring(u8id), Tag))
     assert(
         typeof(u8id) == "number"
         and u8id % 1 == 0
@@ -163,7 +199,8 @@ function Network._on_heartbeat(self: self, _: number)
     local t = tick()
     local do_flush = (t - self._previous_flush) >= FLUSH_RATE
 
-    if do_flush then
+	if do_flush then
+		--print("net-flush")
         self:_flush()
         self._previous_flush = t
 
@@ -174,18 +211,22 @@ function Network._on_heartbeat(self: self, _: number)
 end
 
 function Network._flush(self: self)
-    if Sift.isEmpty(self._batch) then
+	if Sift.isEmpty(self._batch) then
+		--print("empty")
         return
     end
 
     debug.profilebegin("flush")
 
-    local cursor = Squash.cursor()
+	local cursor = Squash.cursor()
+	print_cursor(cursor)
     NetworkInternalSchemas.Batch.ser(cursor, self._batch)
 
     local serialized = Squash.tobuffer(cursor)
+	print(serialized)
 
-    local snd_bytes = RemotePacketSizeCounter.GetPacketSize{RunContext = "Client", RemoteType = "RemoteEvent", PacketData = {serialized}}
+	local snd_bytes = RemotePacketSizeCounter.GetPacketSize{RunContext = "Client", RemoteType = "RemoteEvent", PacketData = {serialized}}
+	print(snd_bytes)
     self._bandwidth_history.snd:Feed(snd_bytes)
 
 	self._remote:FireServer(serialized)

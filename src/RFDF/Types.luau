@@ -16,12 +16,11 @@ export type RFDF = RFDF.RFDF
 export type RFDFClientExposed = RFDF.ClientExposed
 export type RFDFServerExposed = RFDF.ServerExposed
 
-export type ReplicatedRegistryServerEndpoint = RFDF.ReplicatedRegistryServerEndpoint
-export type ReplicatedRegistryClientEndpoint = RFDF.ReplicatedRegistryClientEndpoint
+export type ReplicatedRegistryEndpoint = RFDF.ReplicatedRegistryEndpoint
 export type ServerNetworkEndpoint = RFDF.ServerNetworkEndpoint
 export type ClientNetworkEndpoint = RFDF.ClientNetworkEndpoint
+export type RemoteFunctionEndpoint = RFDF.RemoteFunctionEndpoint
 
-export type ServerReplicatedRegistryEndpoint = RFDF.ReplicatedRegistryServerEndpoint
-export type ClientReplicatedRegistryEndpoint = RFDF.ReplicatedRegistryClientEndpoint
+export type AnyEndpoint = RFDF.AnyEndpoint
 
 return{}

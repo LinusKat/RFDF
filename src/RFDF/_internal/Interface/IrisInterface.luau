@@ -1,3 +1,4 @@
+-- i am very much aware this code is horrendous however i have not had the time to fix it.
 local root = script.Parent.Parent.Parent.Parent
 
 local HttpService = game:GetService("HttpService")
@@ -5,8 +6,9 @@ local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
 
 local CommonTypes = require(root.CommonTypes)
-
 local Versions = require(root.VersionHistory)
+local Sift = require(root._packages.Sift)
+local Memory = require(root.Util.Memory)
 
 local IsServer = RunService:IsServer()
 local RunTypeString = IsServer and "Server" or "Client"
@@ -15,16 +17,30 @@ local InterfaceBucket = {}
 local InterfaceBucketToggles = {}
 
 local Switches = {
-	ShowRegistry = false,
-	ShowLogs = false,
-	ShowVersionHistory = false,
-	ShowStatistics = false,
+	ShowRegistry = 1,
+	ShowLogs = 1,
+	ShowVersionHistory = 1,
+	ShowStatistics = 1,
 
-	ShowIrisDemoWindow = false,
+	ShowIrisDemoWindow = 1,
 }
 local Master = false
 
 local Initialised = false
+
+local RenderCPUFrameTimeMemory = Memory.new(60)
+local PhysicsStepTimeMemory = Memory.new(60)
+local FrameTimeMemory = Memory.new(60)
+local MemoryMBMemory = Memory.new(20)
+
+local Frame = 0
+
+MemoryMBMemory:Feed(vector.create(Frame, 0))
+MemoryMBMemory:Feed(vector.create(Frame, 1))
+
+--ImOverlay:Text(string.format(`FPS: %.0ffps`, 1 / Stats.FrameTime))
+--ImOverlay:Text(string.format(`Render: %.2fms`, Stats.RenderCPUFrameTime * 1000))
+--ImOverlay:Text(string.format(`Physics: %.2fms`, Stats.PhysicsStepTime * 1000))
 
 function MenuBar(Iris, RFDF)
 	Iris.MenuBar()
@@ -32,26 +48,26 @@ function MenuBar(Iris, RFDF)
 		Iris.Menu({ `RFDF` })
 		do
 			if Iris.MenuItem({ "Show Registry" }).clicked() then
-				Switches.ShowRegistry = not Switches.ShowRegistry
+				Switches.ShowRegistry:set(not Switches.ShowRegistry.value)
 			end
 			if Iris.MenuItem({ "Show Logs" }).clicked() then
-				Switches.ShowLogs = not Switches.ShowLogs
+				Switches.ShowLogs:set(not Switches.ShowLogs.value)
 			end
 			if Iris.MenuItem({ "Show Version History" }).clicked() then
-				Switches.ShowVersionHistory = not Switches.ShowVersionHistory
+				Switches.ShowVersionHistory:set(not Switches.ShowVersionHistory.value)
 			end
 			if Iris.MenuItem({ "Show Statistics" }).clicked() then
-				Switches.ShowStatistics = not Switches.ShowStatistics
+				Switches.ShowStatistics:set(not Switches.ShowStatistics.value)
 			end
 
 			if Iris.MenuItem({ "Master Toggle" }).clicked() then
 				Master = not Master
 
-				for k, _ in pairs(Switches) do
+				for k, _ in Switches do
 					if k == "ShowIrisDemoWindow" then
 						continue
 					end
-					Switches[k] = Master
+					Switches[k]:set(Master)
 				end
 			end
 
@@ -64,16 +80,16 @@ function MenuBar(Iris, RFDF)
 			Iris.Separator()
 
 			if Iris.MenuItem({ "Show Iris Demo Window" }).clicked() then
-				Switches.ShowIrisDemoWindow = not Switches.ShowIrisDemoWindow
+				Switches.ShowIrisDemoWindow:set(not Switches.ShowIrisDemoWindow)
 			end
 		end
 		Iris.End()
 
-		Iris.Menu({ `SDIB` })
+		Iris.Menu({ `VIEW` })
 		do
-			for key, service in pairs(InterfaceBucket) do
+			for key, service in InterfaceBucket do
 				if Iris.MenuItem({ key }).clicked() then
-					InterfaceBucketToggles[key] = not InterfaceBucketToggles[key]
+					InterfaceBucketToggles[key]:set(not InterfaceBucketToggles[key]:get())
 				end
 			end
 		end
@@ -83,14 +99,10 @@ function MenuBar(Iris, RFDF)
 end
 
 function VersionHistory(Iris)
-	local version_history_transform =
-		{ Size = Iris.State(Vector2.new(400, 300)), Position = Iris.State(Vector2.new(361, 222)) }
-	Iris.Window(
-		{ `Version History` },
-		{ size = version_history_transform.Size, position = version_history_transform.Position }
-	)
-	do
-		for index, v in ipairs(Versions) do
+	local version_history_transform = { Size = Iris.State(Vector2.new(400, 300)), Position = Iris.State(Vector2.new(361, 222)) }
+	
+	local window = Iris.Window({ `Version History` }, { size = version_history_transform.Size, position = version_history_transform.Position, isOpened = Switches.ShowVersionHistory }); do
+		for index, v in Versions do
 			Iris.CollapsingHeader({ v.Name, index == 1 and true or false })
 
 			Iris.Table({ 3, unpack({ true, true, true, false, false, false, true, true } :: { any }) })
@@ -107,7 +119,7 @@ function VersionHistory(Iris)
 					Iris.NextColumn()
 				end
 
-				for _, change in ipairs(v.Data) do
+				for _, change in v.Data do
 					Iris.Text({ change.Info })
 					Iris.NextColumn()
 
@@ -122,18 +134,13 @@ function VersionHistory(Iris)
 
 			Iris.End()
 		end
-	end
-	Iris.End()
+	end; Iris.End()
 end
 
 function Registry(RFDF, Iris, raw_middleware: CommonTypes.Middleware)
-	local registry_transform =
-		{ Size = Iris.State(Vector2.new(400, 300)), Position = Iris.State(Vector2.new(361, 526)) }
-	Iris.Window(
-		{ `RFDF Registry {RunTypeString}` },
-		{ size = registry_transform.Size, position = registry_transform.Position }
-	)
-	do
+	local registry_transform = { Size = Iris.State(Vector2.new(400, 300)), Position = Iris.State(Vector2.new(361, 526)) }
+	
+	local window = Iris.Window({ `RFDF Registry {RunTypeString}` }, { size = registry_transform.Size, position = registry_transform.Position, isOpened = Switches.ShowRegistry }); do
 		Iris.CollapsingHeader({ "Registered Services", true :: any })
 		do
 			Iris.Table({ 2, unpack({ true, true, true, false, false, false, true, true } :: any) })
@@ -146,12 +153,12 @@ function Registry(RFDF, Iris, raw_middleware: CommonTypes.Middleware)
 					Iris.NextColumn()
 				end
 
-				for key, _ in pairs(raw_middleware) do
+				for key, _ in raw_middleware do
 					Iris.Text({ key })
 					Iris.NextColumn()
 					if InterfaceBucket[key] ~= nil then
 						if Iris.Button({ "Toggle" }).clicked() then
-							InterfaceBucketToggles[key] = not InterfaceBucketToggles[key]
+							InterfaceBucketToggles[key]:set(not InterfaceBucketToggles[key]:get())
 						end
 					end
 					Iris.NextColumn()
@@ -173,7 +180,7 @@ function Registry(RFDF, Iris, raw_middleware: CommonTypes.Middleware)
 					Iris.NextColumn()
 				end
 
-				for u8id, endpoint in pairs(RFDF.Network._registered_endpoints) do
+				for u8id, endpoint in RFDF.Network._registered_endpoints do
 					Iris.Text({ string.format("%f", u8id) })
 					Iris.NextColumn()
 					Iris.Text({ endpoint._tag or "" })
@@ -183,14 +190,13 @@ function Registry(RFDF, Iris, raw_middleware: CommonTypes.Middleware)
 			Iris.End()
 		end
 		Iris.End()
-	end
-	Iris.End()
+	end; Iris.End()
 end
 
 function Logs(RFDF, Iris)
 	local console_transform = { Size = Iris.State(Vector2.new(400, 603)), Position = Iris.State(Vector2.new(763, 222)) }
-	Iris.Window({ `RFDF Console` }, { size = console_transform.Size, position = console_transform.Position })
-	do
+	
+	local window = Iris.Window({ `RFDF Console` }, { size = console_transform.Size, position = console_transform.Position, isOpened = Switches.ShowLogs }); do
 		local filter = ""
 
 		Iris.SameLine()
@@ -201,7 +207,7 @@ function Logs(RFDF, Iris)
 
 			if Iris.Button({ "Dump JSON" }).clicked() then
 				local array = {}
-				for _, log in ipairs(RFDF._log_stack) do
+				for _, log in RFDF._log_stack do
 					table.insert(array, {
 						datetime = log.datetime,
 						origin = log.origin,
@@ -213,6 +219,12 @@ function Logs(RFDF, Iris)
 
 				print(HttpService:JSONEncode(array))
 			end
+			
+			if Iris.Button({ "Dump Formatted" }).clicked() then
+				for _, log in RFDF._log_stack do
+					RFDF:_log_verbose(log.color, log.verbose_log)
+				end
+			end
 
 			local filter_input = Iris.InputText({ "", "Filter" })
 			local input_field = (filter_input.Instance :: any).InputField
@@ -222,26 +234,26 @@ function Logs(RFDF, Iris)
 
 		Iris.SameLine()
 		do
-			local import = Iris.Button({ "Import Logs" })
+			local import = Iris.Button({ "Import Logs From Json" })
 			local text_input = Iris.InputText({ "", "Input" })
 			local input_field = (text_input.Instance :: any).InputField
 
 			if import.clicked() then
-				RFDF:Log("-------------------------------------------------", "PRINT", "Iris Import Logs Start")
+				RFDF:Print("-------------------------------------------------", "Iris Import Logs Start")
 
 				local raw_logs = text_input.state.text.value
 				local json = string.match(raw_logs, "%b[]")
 
 				local logs = HttpService:JSONDecode(json)
 
-				for _, log in ipairs(logs) do
+				for _, log in logs do
 					local color = log.color and Color3.new(log.color.r, log.color.g, log.color.b) or Color3.new(1, 1, 1)
 					RFDF:Log(log.info, color, log.origin, false, log.datetime)
 				end
 
 				input_field.Text = ""
 
-				RFDF:Log("-------------------------------------------------", "PRINT", "Iris Import Logs End")
+				RFDF:Print("-------------------------------------------------", "Iris Import Logs End")
 			end
 		end
 		Iris.End()
@@ -252,7 +264,7 @@ function Logs(RFDF, Iris)
 			local text_input = Iris.InputText({ "", "Log" })
 
 			if debug_log.clicked() then
-				RFDF:Log(text_input.state.text.value, "PRINT", "Iris Debug Log")
+				RFDF:Print(text_input.state.text.value, "Iris Debug Log")
 			end
 		end
 		Iris.End()
@@ -277,18 +289,18 @@ function Logs(RFDF, Iris)
 			end
 		end
 		Iris.End()
-	end
-	Iris.End()
+	end; Iris.End()
 end
 
 local function Statistics(RFDF, Iris)
 	local transform = { Size = Iris.State(Vector2.new(400, 603)), Position = Iris.State(Vector2.new(1167, 222)) }
 
-	Iris.Window({"Statistics"}, { size = transform.Size, position = transform.Position }); do
-		Iris.Text{string.format(`FPS: %.0fms`, 1 / Stats.FrameTime)}
-		Iris.Text{string.format(`Render: %.4fms`, Stats.RenderCPUFrameTime * 1000)}
-		Iris.Text{string.format(`Physics: %.4fms`, Stats.PhysicsStepTime * 1000)}
+	local frame_plots = Iris.State({})
+	local fps_plots = Iris.State({})
+	
+	local memory_plots = Iris.State({})
 
+	local window = Iris.Window({"Statistics"}, { size = transform.Size, position = transform.Position, isOpened = Switches.ShowStatistics }); do
 		Iris.SeparatorText{"World"}
 		Iris.Text{string.format(`Instances: %.0f`, Stats.InstanceCount)}
 		Iris.Text{string.format(`World Draw Calls: %.0f`, Stats.SceneDrawcallCount)}
@@ -307,6 +319,80 @@ local function Statistics(RFDF, Iris)
 		Iris.Text{string.format(`Data Receive: %.2fkbps`, Stats.DataReceiveKbps)}
 		Iris.Text{string.format(`Physics Send: %.2fkbps`, Stats.PhysicsSendKbps)}
 		Iris.Text{string.format(`Physics Receive: %.2fkbps`, Stats.PhysicsReceiveKbps)}
+		
+		Iris.SeparatorText{"Profiler"}
+		Iris.Text{string.format(`FPS: %.0ffps`, 1 / Stats.FrameTime)}
+		Iris.Text{string.format(`Render: %.4fms`, Stats.RenderCPUFrameTime * 1000)}
+		Iris.Text{string.format(`Physics: %.4fms`, Stats.PhysicsStepTime * 1000)}
+		
+		Frame += 1
+		
+		RenderCPUFrameTimeMemory:Feed(vector.create(Frame, Stats.RenderCPUFrameTime * 1000))
+		PhysicsStepTimeMemory:Feed(vector.create(Frame, Stats.PhysicsStepTime * 1000))
+		FrameTimeMemory:Feed(vector.create(Frame, Stats.FrameTime))
+		
+		frame_plots:set{{
+			Data = RenderCPUFrameTimeMemory.Memory,
+			Name = "Render CPU Frame Time",
+			GraphStyle = {
+				Color = Color3.new(1, 0, 0),
+				Thickness = 1,
+			},
+		}, 
+		{
+			Data = PhysicsStepTimeMemory.Memory,
+			Name = "Physics Step Time",
+			GraphStyle = {
+				Color = Color3.new(0, 1, 0),
+				Thickness = 1,
+			},
+		}}
+	
+		fps_plots:set{{
+			Data = FrameTimeMemory.Memory,
+			Name = "FPS",
+			GraphStyle = {
+				Color = Color3.new(0, 0, 1),
+				Thickness = 1,
+			},
+		}}
+		
+		Iris.ImPlotGraph({
+			"Frame Time",
+			{ X = "frame", Y = "ms", XScale = 1, YScale = .8 } 
+		},
+			{ plots = frame_plots, showDataInformation = Iris.State(true) }
+		)
+		
+		Iris.ImPlotGraph({
+			"FPS",
+			{ X = "frame", Y = "FPS", XScale = 1, YScale = .8 } 
+		},
+			{ plots = fps_plots, showDataInformation = Iris.State(false) }
+		)
+		
+		if Stats.MemoryTrackingEnabled then
+			if Frame % 500 == 0 then
+				MemoryMBMemory:Feed(vector.create(Frame, Stats:GetTotalMemoryUsageMb()))
+			end
+			
+			memory_plots:set{{
+				Data = MemoryMBMemory.Memory,
+				Name = "Memory",
+				GraphStyle = {
+					Color = Color3.new(1, 0.929412, 0.14902),
+					Thickness = 1,
+				},
+			}}
+			
+			Iris.ImPlotGraph({
+				"Memory Usage MB",
+				{ X = "Frame", Y = "MB", XScale = 1, YScale = .8 }},
+			{ plots = memory_plots, showDataInformation = Iris.State(true) }
+			)
+		else
+			Iris.Text({"Memory Tracking is Disabled, join with MicroProfiler on (Shift + F6) to ensure it is enabled"})
+		end
 	end; Iris.End()
 end
 
@@ -314,44 +400,35 @@ return function(self, raw_middleware: CommonTypes.Middleware)
 	local Iris = self.Iris
 
 	if not Initialised then
-		for Key, Service in pairs(raw_middleware) do
+		for Key, Service in raw_middleware do
 			if typeof(Service._debug_interface) ~= "function" then continue end
 			InterfaceBucket[Key] = Service
-			InterfaceBucketToggles[Key] = false
+			InterfaceBucketToggles[Key] = Iris.State(false)
+		end
+		
+		for k, v in Switches do
+			Switches[k] = Iris.State(false)
 		end
 
 		Initialised = true
 	end
 	
-	for _, v in ipairs(Iris.Internal._rootInstance:GetChildren()) do
+	for _, v in Iris.Internal._rootInstance:GetChildren() do
 		v:AddTag("FreecamIgnoreDisable")
 	end
 
 	MenuBar(Iris, self)
 
-	for key, service in pairs(InterfaceBucket) do
-		if InterfaceBucketToggles[key] then
-			service:_debug_interface(Iris)
-		end
+	for key, service in InterfaceBucket do
+		service:_debug_interface(Iris, InterfaceBucketToggles[key])
 	end
 
-	if Switches.ShowVersionHistory then
-		VersionHistory(Iris)
-	end
+	VersionHistory(Iris)
+	Registry(self, Iris, raw_middleware)
+	Logs(self, Iris)
+	Statistics(self, Iris)
 
-	if Switches.ShowRegistry then
-		Registry(self, Iris, raw_middleware)
-	end
-
-	if Switches.ShowLogs then
-		Logs(self, Iris)
-	end
-
-	if Switches.ShowStatistics then
-		Statistics(self, Iris)
-	end
-
-	if Switches.ShowIrisDemoWindow then
+	if Switches.ShowIrisDemoWindow:get() then
 		self.Iris.ShowDemoWindow()
 	end
 end

@@ -1,4 +1,6 @@
 --[[
+	Made with love by LinusKat
+
 	Started working on:
 		Ridiculously - Fast - Debuggable - Framework [RFDF]
 		02-12-2025 [DD/MM/YYYY]
@@ -32,6 +34,7 @@
 ]]
 
 --!strict
+local TestService = game:GetService("TestService")
 local RunService = game:GetService("RunService")
 
 -- // Dependencies
@@ -39,30 +42,35 @@ local IrisTypes = require(script._packages._Index["linuskat_iris-implot@1.0.4"][
 local Iris = require(script._packages.Iris)
 
 local Promise = require(script._packages.Promise)
--- local Squash = require(script._packages.Squash)
 
 local CommonTypes = require(script.CommonTypes)
 
 local Interface = require(script._internal.Interface)
 
 local ReplicatedRegistry = require(script._network_packages.ReplicatedRegistry)
+local RemoteFunction = require(script._network_packages.RemoteFunction)
 local ServerNetwork = require(script._network_packages.Server)
 local ClientNetwork = require(script._network_packages.Client)
-local Memory = require("@self/Util/Memory")
+local TableToString = require(script.Util.TableToString)
+local Benchmark = require(script.Util.Benchmark)
+local Memory = require(script.Util.Memory)
 
 -- // VARIABLES
 local IsServer = RunService:IsServer()
+local IsStudio = RunService:IsStudio()
 local RunTypeString = IsServer and "Server" or "Client"
 
-local RFDF_SETTINGS = {
+const RFDF_SETTINGS = {
 	LOAD_SERVICE_TIMEOUT = 15,
-	KILL_SERVICE_TIMEOUT = 1,
+	KILL_SERVICE_TIMEOUT = 2,
 
 	LOG_HISTORY = 1000,
 	LOG_VERBOSE = true,
+	LOG_VERBOSE_WHITESPACE_MAX = 25,
+	LOG_VERBOSE_NETWORK_DUMP_DEPTH = 1,
 }
 
-local ERROR_MESSAGES = {
+const ERROR_MESSAGES = {
 	-- // @STARTUP
 	INITIALIZE_ALREADY_INITIALIZED = string.format(
 		"RFDF - %s: Tried to intialize RFDF however RFDF is already initialized",
@@ -91,7 +99,7 @@ local ERROR_MESSAGES = {
 	INVALID_REMOTE_TYPE = "An error occurred while registering remote %s! %s is not a valid remote type!",
 }
 
-local LOG_COLORS = {
+const INTERFACE_LOG_COLORS = {
 	ERROR = Color3.new(1, 0, 0),
 	WARNING = Color3.new(1, 0.5, 0),
 	PRINT = Color3.new(1, 1, 1),
@@ -99,10 +107,15 @@ local LOG_COLORS = {
 
 -- // PRIVATE
 local raw_middleware: Middleware = {}
+local raw_network = {}
 
 local function FormatDirtyLog(str: string, TracebackLevel: number?)
 	assert(typeof(str) == "string", ERROR_MESSAGES.FORMAT_DIRTY_LOG_STRING_TYPE_ERROR)
 	return debug.traceback(string.format("RFDF - %s: %s", RunTypeString, str), TracebackLevel or 5)
+end
+
+local function LoggingUniformWhitespace(str: string, max: number)
+	return string.rep(" ", math.max(0, max - #str))
 end
 
 -- // PUBLIC
@@ -123,31 +136,79 @@ function RFDF.root()
 	return self
 end
 
+function RFDF._log_verbose(self: self, color: any, describe: string)
+	if color == "WARNING" then
+		warn(describe)
+	elseif color == "ERROR" then
+		TestService:Error(describe, script, 140)
+	else
+		print(describe)
+	end
+end
+
+function RFDF._initialize_network_folder(self: self, folder)
+	local function GetEndpointFromArgs(Data: any): AnyEndpoint
+		local is_replicated_registry = not Data.Schema and not Data.Timeout
+		local is_remote_function = Data.Timeout
+		
+		if is_replicated_registry then
+			local local_allow_write = IsServer and Data.ServerAllowWrite or Data.ClientAllowWrite
+			return self.ReplicatedRegistryEndpoint.new(self.Network, {}, Data.u8id, Data.Tag, local_allow_write):: any
+		elseif is_remote_function then
+			return self.RemoteFunctionEndpoint.new(self.Network, Data.u8id, Data.Tag, Data.RequestSchema, Data.ReplySchema, Data.Timeout):: any
+		else
+			local NetworkEndpoint = self.NetworkEndpoint::any
+			return NetworkEndpoint.new(self.Network, Data.u8id, Data.Tag, Data.Schema, {}):: any
+		end
+	end
+	
+	local function Require(current: Instance, cd: string)
+		for _, child in current:GetChildren() do
+			local childPath = string.format("%s/%s", cd, child.Name)
+
+			if child:IsA("ModuleScript") then
+				local args = require(child):: any
+				raw_network[childPath] = GetEndpointFromArgs(args)
+			elseif #child:GetChildren() > 0 then
+				Require(child, childPath)
+			end
+		end
+	end
+	
+	return Require(script.Network, "")
+end
+
 function RFDF._initialize_client(self: self & ClientExposed)
-	print("rfdf/new/init-client")
+	print("rfdf/root/init-client")
 
 	self.Network = ClientNetwork.new()
 
 	self.NetworkEndpoint = self.Network.NetworkEndpoint:: any
 	self.ReplicatedRegistryEndpoint = ReplicatedRegistry:: any
+	self.RemoteFunctionEndpoint = RemoteFunction:: any
 
 	self.Iris.Init()
 
 	local interface = Interface.new(self)
 	interface:Init()
-
-	self.Iris:Connect(function()
-		interface:Render(raw_middleware)
-	end)
+	
+	if IsStudio then
+		self.Iris:Connect(function()
+			debug.profilebegin("rfdf/interface")
+			interface:Render(raw_middleware)
+			debug.profileend()
+		end)
+	end
 end
 
 function RFDF._intialize_server(self: self & ServerExposed)
-	print("rfdf/new/init-server")
+	print("rfdf/root/init-server")
 
 	self.Network = ServerNetwork.new()
 
 	self.NetworkEndpoint = self.Network.NetworkEndpoint:: any
 	self.ReplicatedRegistryEndpoint = ReplicatedRegistry:: any
+	self.RemoteFunctionEndpoint = RemoteFunction:: any
 end
 
 function RFDF._register_service(self: self, Name: string, tbl: CommonServiceFunctions)
@@ -159,20 +220,52 @@ function RFDF._register_service(self: self, Name: string, tbl: CommonServiceFunc
 
 	local started_service = tbl.new{RFDF = self}
 	raw_middleware[Name] = started_service
-
+	
 	return started_service
 end
 
 function RFDF._init_service(self: self, started_service: CommonServiceFunctions)
 	--assert(typeof(started_service.Init) == "function", ERROR_MESSAGES.SERVICE_MISSING_INIT_FUNCTION)
 	if typeof(started_service.Init) ~= "function" then
-		return print(ERROR_MESSAGES.SERVICE_MISSING_INIT_FUNCTION)
+		return self:Log(ERROR_MESSAGES.SERVICE_MISSING_INIT_FUNCTION, "PRINT", "RFDF")
 	end
 	
 	started_service:Init()
 end
 
+function RFDF._load_modules_from_array(self: self, tbl: any)
+	local function catch_load_issue(err)
+		if Promise.Error.isKind(err, Promise.Error.Kind.TimedOut) then
+			self:Log(FormatDirtyLog(ERROR_MESSAGES.SERVICE_AWAIT_TIMEOUT), "WARNING", "RFDF")
+		else
+			self:Log(tostring(err), "ERROR", "RFDF")
+		end
+	end
+
+	for _, instance: ModuleScript | any in tbl do
+		if not instance:IsA("ModuleScript") or string.match(instance.Name, ".rfdf_ignore") then
+			continue
+		end
+
+		self:RegisterService(instance :: ModuleScript)
+			:timeout(RFDF_SETTINGS.LOAD_SERVICE_TIMEOUT)
+			:catch(catch_load_issue)
+			:awaitStatus()
+	end
+
+	self:Log("----------------------[INIT]---------------------- <", "PRINT", "")
+
+	for name, started_service: CommonServiceFunctions in raw_middleware do
+		self:InitializeService(name, started_service)
+			:timeout(RFDF_SETTINGS.LOAD_SERVICE_TIMEOUT)
+			:catch(catch_load_issue)
+			:awaitStatus()
+	end
+end
+
 function RFDF.Init(self: self)
+	const profile = Benchmark()
+
 	assert(not self._intialized, ERROR_MESSAGES.INITIALIZE_ALREADY_INITIALIZED)
 
 	if IsServer then
@@ -180,28 +273,40 @@ function RFDF.Init(self: self)
 	elseif not IsServer then
 		self:_initialize_client()
 	end
+	self:_initialize_network_folder()
 
 	debug.setmemorycategory("RFDF")
 
 	self._intialized = true
 	self._init_time = os.clock()
+
+	self:Log(string.format("%s", profile()), "PRINT", "rfdf/root/init")
+	self:Log(string.format("dump network endpoints %s", TableToString.TableToString(raw_network, nil, nil, nil, RFDF_SETTINGS.LOG_VERBOSE_NETWORK_DUMP_DEPTH)), "PRINT", "rfdf/root/init")
 end
 
 -- // SERVICE FUNCTIONS
 function RFDF.RegisterService(self: self, Module: ModuleScript)
-	self:Log(string.format("Attempting to create service instance: %s", Module.Name), "WARNING", "RFDF")
-	
+	--self:Log(string.format("Attempting to create service instance: %s", Module.Name), "PRINT", "RFDF")
 	return Promise.new(function(resolve)
+		const profile = Benchmark()
 		local started_service = self:_register_service(Module.Name, require(Module) :: CommonServiceFunctions)
+		
+		self:Log(string.format(`CREATE -- %s %s && %s`, Module.Name, LoggingUniformWhitespace(Module.Name, RFDF_SETTINGS.LOG_VERBOSE_WHITESPACE_MAX), profile()), "PRINT", "RFDF")
+		-- // CREATE -- SERVICE_NAME WHITESPACE_HERE && BENCHMARK WHITESPACE_HERE
+		
 		resolve(started_service)
 	end)
 end
 
 function RFDF.InitializeService(self: self, name: string, started_service: CommonServiceFunctions)
-	self:Log(string.format("Attempting to initialize service instance: %s", name), "WARNING", "RFDF")
-	
+	--self:Log(string.format("Attempting to initialize service instance: %s", name), "PRINT", "RFDF")
 	return Promise.new(function(resolve)
+		const profile = Benchmark()
 		self:_init_service(started_service)
+		
+		self:Log(string.format(`INIT -- %s %s && %s`, name, LoggingUniformWhitespace(name, RFDF_SETTINGS.LOG_VERBOSE_WHITESPACE_MAX), profile()), "PRINT", "RFDF")
+		-- // CREATE -- SERVICE_NAME WHITESPACE_HERE && BENCHMARK
+
 		resolve()
 	end)
 end
@@ -214,35 +319,17 @@ function RFDF.KillService(self: self, started_service: CommonServiceFunctions)
 end
 
 function RFDF.LoadServicesFromFolder(self: self, Folder: Folder)
-	local function catch_load_issue(err)
-		if Promise.Error.isKind(err, Promise.Error.Kind.TimedOut) then
-			self:Log(FormatDirtyLog(ERROR_MESSAGES.SERVICE_AWAIT_TIMEOUT), "WARNING", "RFDF")
-		else
-			self:Log(tostring(err), "ERROR", "RFDF")
-		end
-	end
-	
-	for _, instance: ModuleScript | any in ipairs(Folder:GetChildren()) do
-		if not instance:IsA("ModuleScript") or string.match(instance.Name, ".rfdf_ignore") then
-			continue
-		end
-		
-		self:RegisterService(instance :: ModuleScript)
-			:timeout(RFDF_SETTINGS.LOAD_SERVICE_TIMEOUT)
-			:catch(catch_load_issue)
-	end
-	
-	for name, started_service: CommonServiceFunctions in pairs(raw_middleware) do
-		self:InitializeService(name, started_service)
-			:timeout(RFDF_SETTINGS.LOAD_SERVICE_TIMEOUT)
-			:catch(catch_load_issue)
-	end
+	self:_load_modules_from_array(Folder:GetChildren())
+end
+
+function RFDF.LoadServicesFromArray(self: self, tbl: {ModuleScript})
+	self:_load_modules_from_array(tbl)
 end
 
 function RFDF.KillRFDFInstance(self: self)
 	self:Log("RFDF Instance Killed", "ERROR")
 	
-	for _, service: CommonServiceFunctions in pairs(raw_middleware) do
+	for _, service: CommonServiceFunctions in raw_middleware do
 		self:KillService(service)
 			:timeout(RFDF_SETTINGS.KILL_SERVICE_TIMEOUT)
 			:catch(function(err)
@@ -255,10 +342,28 @@ function RFDF.KillRFDFInstance(self: self)
 end
 
 function RFDF.GetService(self: self, Key: string): (CommonServiceFunctions & any)?
-	return raw_middleware[Key]
+	local index = raw_middleware[Key]
+	assert(index, string.format("Couldn't find service @ %s", Key))
+	
+	return index
+end
+
+function RFDF.RequireEndpoint(self: self, Path: string): AnyEndpoint
+	local index = raw_network[Path]
+	assert(index, string.format("Couldn't find endpoint @ %s", Path))
+	
+	return index
 end
 
 -- // Utility functions
+function RFDF.SetSetting(self: self, k: string, v: any)
+	RFDF_SETTINGS[k] = v
+end
+
+function RFDF.GetInitTime(self: self)
+	return self._init_time
+end
+
 function RFDF.ClearLogs(self: self)
 	table.clear(self._log_stack)
 end
@@ -267,10 +372,10 @@ function RFDF.Log(self: self, info: string, color: LogColor?, origin: string?, i
 	assert(typeof(info) == "string", ERROR_MESSAGES.LOG_INTERNAL_STRING_TYPE_FAULTY)
 
 	local log_color = nil
-	if LOG_COLORS[color] then
-		log_color = LOG_COLORS[color]
+	if INTERFACE_LOG_COLORS[color] then
+		log_color = INTERFACE_LOG_COLORS[color]
 	else
-		log_color = color or LOG_COLORS.PRINT
+		log_color = color or INTERFACE_LOG_COLORS.PRINT
 	end
 
 	local log: Log = {
@@ -281,6 +386,7 @@ function RFDF.Log(self: self, info: string, color: LogColor?, origin: string?, i
 
 		origin = origin or "Unspecified",
 		info = info,
+		verbose_log = string.format("%s > %s", origin or "", info),
 
 		color = log_color:: Color3,
 	}
@@ -290,14 +396,36 @@ function RFDF.Log(self: self, info: string, color: LogColor?, origin: string?, i
 	end
 
 	table.insert(self._log_stack, log)
+	
+	if RFDF_SETTINGS.LOG_VERBOSE then
+		self:_log_verbose(color, log.verbose_log)
+	end
 
 	if is_issue then
 		table.insert(self._issues, log)
+		error("Halt execution")
 	end
-	
-	if RFDF_SETTINGS.LOG_VERBOSE then
-		print(string.format("%s %s %s %s", origin or "", info, tostring(is_issue), tostring(color)))
-	end
+end
+
+--[[
+	Sugar for :Log info "PRINT" origin
+]]
+function RFDF.Print(self: self, info: string, origin: string?)
+	self:Log(info, "PRINT", origin)
+end
+
+--[[
+	Sugar for :Log info "WARNING" origin
+]]
+function RFDF.Warn(self: self, info: string, origin: string?)
+	self:Log(info, "WARNING", origin)
+end
+
+--[[
+	Sugar for :Log info "ERROR" origin is_issue
+]]
+function RFDF.Error(self: self, info: string, origin: string?, is_issue: boolean?)
+	self:Log(info, "ERROR", origin, is_issue)
 end
 
 -- // PRIVATE TYPES
@@ -311,26 +439,20 @@ type Iris = IrisTypes.Iris
 type Memory = Memory.Memory
 
 -- // PUBLIC TYPES
-export type SquashSerDes = any--Squash.SerDes
-export type SquashCursor = any--Squash.Cursor
-
-export type ReplicatedRegistryServerEndpoint = ReplicatedRegistry.Endpoint & ReplicatedRegistry.ServerExposed
-export type ReplicatedRegistryClientEndpoint = ReplicatedRegistry.Endpoint & ReplicatedRegistry.ClientExposed
+export type ReplicatedRegistryEndpoint = ReplicatedRegistry.Endpoint
 export type ServerNetworkEndpoint = ServerNetwork.NetworkEndpoint
 export type ClientNetworkEndpoint = ClientNetwork.NetworkEndpoint
+export type RemoteFunctionEndpoint = RemoteFunction.Endpoint
 
-export type ServerReplicatedRegistryEndpoint = ReplicatedRegistry.Endpoint & ReplicatedRegistry.ServerExposed
-export type ClientReplicatedRegistryEndpoint = ReplicatedRegistry.Endpoint & ReplicatedRegistry.ClientExposed
+export type AnyEndpoint = ReplicatedRegistryEndpoint | ServerNetworkEndpoint | ClientNetworkEndpoint | RemoteFunctionEndpoint
 
 export type ClientExposed = {
 	Network: ClientNetwork.Network,
 	NetworkEndpoint: ClientNetwork.NetworkEndpoint,
-	ReplicatedRegistryEndpoint: ClientReplicatedRegistryEndpoint,
 }
 export type ServerExposed = {
 	Network: ServerNetwork.Network,
 	NetworkEndpoint: ServerNetwork.NetworkEndpoint,
-	ReplicatedRegistryEndpoint: ServerReplicatedRegistryEndpoint,
 }
 
 export type LogColor = Color3 | "ERROR" | "WARNING" | "PRINT" | string
@@ -342,6 +464,7 @@ export type Log = {
 
 	origin: string,
 	info: string,
+	verbose_log: string,
 
 	color: Color3,
 }
@@ -357,7 +480,8 @@ export type RFDF = {
 	
 	Network: ClientNetwork.Network | ServerNetwork.Network,
 	NetworkEndpoint: ServerNetworkEndpoint | ClientNetworkEndpoint,
-	ReplicatedRegistryEndpoint: ServerReplicatedRegistryEndpoint | ClientReplicatedRegistryEndpoint,
+	ReplicatedRegistryEndpoint: ReplicatedRegistryEndpoint,
+	RemoteFunctionEndpoint: RemoteFunctionEndpoint,
 
 	Iris: Iris,
 } & typeof(RFDF)
