@@ -355,9 +355,11 @@ end
 	@return Promise
 
 	```lua
-	self.RFDF:GetService("MyManager"):andThen(function(myManager)
-		self.RFDF:InitializeService("MyManager", myManager)
-	end)
+	self.RFDF:RegisterService(ServiceModuleScript)
+
+	local service = self.RFDF:GetService("ServiceKey")
+
+	self.RFDF:InitializeSerivce("ServiceKey", service)
 	```
 
 ]=]
