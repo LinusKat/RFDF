@@ -385,6 +385,23 @@ function RFDF.InitializeService(self: self, name: string, started_service: Commo
 	end)
 end
 
+--[=[
+	Runs the destructor method :Kill() for a given service
+	@param started_service CommonServiceFunctions
+ 
+	@return Promise
+
+	```lua
+	self.RFDF:RegisterService(ServiceModuleScript)
+
+	local service = self.RFDF:GetService("ServiceKey")
+
+	self.RFDF:InitializeSerivce("ServiceKey", service)
+
+	self.RFDF:KillService(service)
+	```
+
+]=]
 function RFDF.KillService(self: self, started_service: CommonServiceFunctions)
 	return Promise.new(function(resolve)
 		started_service:Kill()
@@ -562,5 +579,17 @@ export type RFDF = {
 	Iris: Iris,
 } & typeof(RFDF)
 type self = RFDF
+
+-- export type CommonServiceType = typeof(mt)
+-- export type CommonServiceFunctions = {
+-- 	new: newCallback,
+-- 	Init: InitCallback,
+-- 	Kill: KillCallback,
+
+-- 	_debug_interface: DebugInterfaceCallback,
+-- } & CommonServiceType
+
+--- @type CommonServiceFunctions {new: newCallback, Init: InitCallback, Kill: KillCallback, _debug_interface: DebugInterfaceCallback} & CommonServiceType
+--- @within RFDF
 
 return RFDF
