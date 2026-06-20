@@ -409,10 +409,45 @@ function RFDF.KillService(self: self, started_service: CommonServiceFunctions)
 	end)
 end
 
+--[=[
+Loads services from a folder
+
+
+```lua
+local root = RFDF.root()
+root:Init()
+
+root:LoadServicesFromFolder(myFolderContainingServices)
+```
+
+]=]
 function RFDF.LoadServicesFromFolder(self: self, Folder: Folder)
 	self:_load_modules_from_array(Folder:GetChildren())
 end
 
+--[=[
+Loads services from an array
+
+```lua
+const SOURCE = script
+
+const PRIORITY_LOAD: { ModuleSCript } = {
+	[1] = SOURCE.myManager
+}
+
+for _, v: any in SOURCE:GetChildren() do
+	if not table.find(PRIORITY_LOAD, v) then 
+		table.insert(PRIORITY_LOAD, v)
+	end
+end
+
+local root = RFDF.root()
+root:Init()
+
+root:LoadServicesFromArray(myFolderContainingServices)
+```
+
+]=]
 function RFDF.LoadServicesFromArray(self: self, tbl: { ModuleScript })
 	self:_load_modules_from_array(tbl)
 end
