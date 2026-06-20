@@ -321,7 +321,7 @@ end
 	@return Promise<CommonServiceFunctions>
 
 	```lua
-	self.MyManager = self.RFDF:GetService("MyManager")
+	self.RFDF:RegisterService(ServiceModuleScript)
 	```
 
 ]=]
