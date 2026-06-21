@@ -536,6 +536,11 @@ function RFDF.SetSetting(self: self, k: string, v: any)
 	RFDF_SETTINGS[k] = v
 end
 
+--[=[
+Returns the time it took to initialize RFDF
+
+@return number 
+]=]
 function RFDF.GetInitTime(self: self)
 	return self._init_time
 end
