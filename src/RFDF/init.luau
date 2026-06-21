@@ -625,8 +625,15 @@ end
 
 -- // PRIVATE TYPES
 type StartupData = CommonTypes.StartupData
+--- @within RFDF
+--- @type StartupData {RFDF: any}
+
 type CommonServiceType = CommonTypes.CommonServiceType
+
 type CommonServiceFunctions = CommonTypes.CommonServiceFunctions
+--- @within RFDF
+--- @type CommonServiceFunctions {new: newCallback, Init: InitCallback, Kill: KillCallback} & CommonServiceType
+
 type Middleware = CommonTypes.Middleware
 
 type Iris = IrisTypes.Iris
@@ -657,6 +664,9 @@ export type ServerExposed = {
 }
 
 export type LogColor = Color3 | "ERROR" | "WARNING" | "PRINT" | string
+--- @within RFDF
+--- @type LogColor Color3 | "ERROR" | "WARNING" | "PRINT" | string
+
 export type Log = {
 	timestamp: number,
 	datetime: string,
@@ -669,6 +679,8 @@ export type Log = {
 
 	color: Color3,
 }
+--- @within RFDF
+--- @type Log {timestamp: number, datetime: string, is_issue: boolean, origin: string, info: string, verbose_log: string, color: Color3}
 
 export type RFDF = {
 	_issues: { Log },
@@ -686,10 +698,9 @@ export type RFDF = {
 
 	Iris: Iris,
 } & typeof(RFDF)
+--- @within RFDF
+--- @type RFDF typeof(RFDF) & {Network: ClientNetwork.Network | ServerNetwork.Network, NetworkEndpoint: ServerNetworkEndpoint | ClientNetworkEndpoint, ReplicatedRegistryEndpoint: ReplicatedRegistryEndpoint, RemoteFunctionEndpoint: RemoteFunctionEndpoint}
 
 type self = RFDF
-
---- @within RFDF
---- @type CommonServiceFunctions {new: newCallback, Init: InitCallback, Kill: KillCallback, _debug_interface: DebugInterfaceCallback} & CommonServiceType
 
 return RFDF
