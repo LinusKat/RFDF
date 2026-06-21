@@ -602,23 +602,23 @@ function RFDF.Log(self: self, info: string, color: LogColor?, origin: string?, i
 	end
 end
 
---[[
-	Sugar for :Log info "PRINT" origin
-]]
+--[=[
+Sugar for :Log info "PRINT" origin
+]=]
 function RFDF.Print(self: self, info: string, origin: string?)
 	self:Log(info, "PRINT", origin)
 end
 
---[[
-	Sugar for :Log info "WARNING" origin
-]]
+--[=[
+Sugar for :Log info "WARN" origin
+]=]
 function RFDF.Warn(self: self, info: string, origin: string?)
 	self:Log(info, "WARNING", origin)
 end
 
---[[
-	Sugar for :Log info "ERROR" origin is_issue
-]]
+--[=[
+Sugar for :Log info "ERROR" origin
+]=]
 function RFDF.Error(self: self, info: string, origin: string?, is_issue: boolean?)
 	self:Log(info, "ERROR", origin, is_issue)
 end
