@@ -454,7 +454,7 @@ end
 
 --[=[
 
-Runs [RFDF.KillService](/api/RFDF#KillService) on all registered services and flags your RFDF instance as killed.
+Runs [RFDF.KillService] on all registered services and flags your RFDF instance as killed.
 
 ```lua
 local root = RFDF.root()
