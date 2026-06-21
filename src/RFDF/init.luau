@@ -497,6 +497,17 @@ function RFDF.GetService(self: self, Key: string): (CommonServiceFunctions & any
 	return index
 end
 
+--[=[
+Returns the index for a registered endpoint
+
+```lua
+
+self.myEndpoint = self.RFDF:RequireEndpoint("/myEndpoint")
+
+```
+
+@return AnyEndpoint
+]=]
 function RFDF.RequireEndpoint(self: self, Path: string): AnyEndpoint
 	local index = raw_network[Path]
 	assert(index, string.format("Couldn't find endpoint @ %s", Path))
@@ -593,6 +604,8 @@ export type ServerNetworkEndpoint = ServerNetwork.NetworkEndpoint
 export type ClientNetworkEndpoint = ClientNetwork.NetworkEndpoint
 export type RemoteFunctionEndpoint = RemoteFunction.Endpoint
 
+--- @within RFDF
+--- @type AnyEndpoint ReplicatedRegistryEndpoint | ServerNetworkEndpoint | ClientNetworkEndpoint | RemoteFunctionEndpoint
 export type AnyEndpoint =
 	ReplicatedRegistryEndpoint
 	| ServerNetworkEndpoint
@@ -640,16 +653,7 @@ export type RFDF = {
 } & typeof(RFDF)
 type self = RFDF
 
--- export type CommonServiceType = typeof(mt)
--- export type CommonServiceFunctions = {
--- 	new: newCallback,
--- 	Init: InitCallback,
--- 	Kill: KillCallback,
-
--- 	_debug_interface: DebugInterfaceCallback,
--- } & CommonServiceType
-
---- @type CommonServiceFunctions {new: newCallback, Init: InitCallback, Kill: KillCallback, _debug_interface: DebugInterfaceCallback} & CommonServiceType
 --- @within RFDF
+--- @type CommonServiceFunctions {new: newCallback, Init: InitCallback, Kill: KillCallback, _debug_interface: DebugInterfaceCallback} & CommonServiceType
 
 return RFDF
