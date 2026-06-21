@@ -524,10 +524,24 @@ function RFDF.GetInitTime(self: self)
 	return self._init_time
 end
 
+--[=[
+Clears the current log stack
+]=]
 function RFDF.ClearLogs(self: self)
 	table.clear(self._log_stack)
 end
 
+--[=[
+Creates a log for the output 
+
+```lua
+local root = RFDF.root()
+
+root:Log("I am logging somthing", "WARNING", "init.client.luau", false)
+```
+```
+
+]=]
 function RFDF.Log(self: self, info: string, color: LogColor?, origin: string?, is_issue: boolean?, datetime: string?)
 	assert(typeof(info) == "string", ERROR_MESSAGES.LOG_INTERNAL_STRING_TYPE_FAULTY)
 
