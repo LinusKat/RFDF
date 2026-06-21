@@ -452,6 +452,20 @@ function RFDF.LoadServicesFromArray(self: self, tbl: { ModuleScript })
 	self:_load_modules_from_array(tbl)
 end
 
+--[=[
+
+Runs [RFDF.KillService](/api/RFDF#KillService) on all registered services and flags your RFDF instance as killed.
+
+```lua
+local root = RFDF.root()
+root:Init()
+
+game.Close:Connect(function()
+	root:KIllRFDFInstance()
+end)
+```
+
+]=]
 function RFDF.KillRFDFInstance(self: self)
 	self:Log("RFDF Instance Killed", "ERROR")
 
