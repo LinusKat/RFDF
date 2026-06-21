@@ -539,7 +539,7 @@ end
 --[=[
 Returns the time it took to initialize RFDF
 
-@return number 
+@return number?
 ]=]
 function RFDF.GetInitTime(self: self)
 	return self._init_time
@@ -686,6 +686,7 @@ export type RFDF = {
 
 	Iris: Iris,
 } & typeof(RFDF)
+
 type self = RFDF
 
 --- @within RFDF
