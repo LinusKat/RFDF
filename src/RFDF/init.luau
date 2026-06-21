@@ -516,6 +516,22 @@ function RFDF.RequireEndpoint(self: self, Path: string): AnyEndpoint
 end
 
 -- // Utility functions
+
+--[=[
+Sets a setting for:
+
+```lua
+const RFDF_SETTINGS = {
+	LOAD_SERVICE_TIMEOUT = 15,
+	KILL_SERVICE_TIMEOUT = 2,
+
+	LOG_HISTORY = 1000,
+	LOG_VERBOSE = true,
+	LOG_VERBOSE_WHITESPACE_MAX = 25,
+	LOG_VERBOSE_NETWORK_DUMP_DEPTH = 1,
+}
+```
+]=]
 function RFDF.SetSetting(self: self, k: string, v: any)
 	RFDF_SETTINGS[k] = v
 end
