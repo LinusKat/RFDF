@@ -17,7 +17,7 @@ const PACKET_REQUEST = 0
 const PACKET_REPLY = 1
 
 --[=[
-@class RemoteFunction
+@class Endpoint
 ]=]
 local Endpoint = {}
 Endpoint.__index = Endpoint
@@ -171,7 +171,7 @@ function Endpoint._request(self: self, Target: Player?, ...: any)
 	return self:_promise_me_an_answer()
 end
 --[=[
-@within RemoteFunction
+@within Endpoint
 
 Client -> Server -> Client
 
@@ -188,7 +188,7 @@ function Endpoint.RequestFromServer(self: self, ...: any)
 end
 
 --[=[
-@within RemoteFunction
+@within Endpoint
 
 Server -> Client -> Server
 
@@ -207,7 +207,7 @@ function Endpoint.RequestFromClient(self: self, Target: Player?, ...: any)
 end
 
 --[=[
-@within RemoteFunction
+@within Endpoint
 
 Hook a reply function on the request receiving side
 
