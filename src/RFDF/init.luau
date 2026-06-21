@@ -479,6 +479,17 @@ function RFDF.KillRFDFInstance(self: self)
 	self.Iris.Shutdown()
 end
 
+--[=[
+
+Returns the registered service from it's key.
+
+```lua
+self.RFDF:RegisterService(ServiceModuleScript)
+
+local service = self.RFDF:GetService("ServiceKey")
+```
+@return (CommonService Functions & any)?
+]=]
 function RFDF.GetService(self: self, Key: string): (CommonServiceFunctions & any)?
 	local index = raw_middleware[Key]
 	assert(index, string.format("Couldn't find service @ %s", Key))
