@@ -104,7 +104,9 @@ function NetworkEndpoint._send(self: NetworkEndpoint, ...)
     
     table.insert(self._network._batch[self._u8id], serialized)
 end
-
+--[=[
+@within Endpoint
+]=]
 function NetworkEndpoint.FireServer(self: NetworkEndpoint, ...: any)
     self:_send(...)
 end
