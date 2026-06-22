@@ -9,3 +9,5 @@ git clone https://github.com/example/RFDF.git
 cd RFDF
 ```
 Place `RFDF` in replicated storage, `init.client.luau` and `init.server.luau` into appropriate directories.
+
+<!--moonwave-hide-before-this-line-->
