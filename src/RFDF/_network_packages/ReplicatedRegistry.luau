@@ -19,31 +19,33 @@ local ClientNetwork = require(src.Parent._network_packages.Client)
 local IsServer = RunService:IsServer()
 
 local SCHEMA = Squash.opt(Squash.buffer())
-
+--[=[
+	@class ReplicatedRegistry
+]=]
 local Endpoint = {}
 Endpoint.__index = Endpoint
 
 function Endpoint.new(Network: Network, Registry: Registry, u8id: number, tag: string, allow_write: boolean): Endpoint
-	local self = setmetatable({}, Endpoint):: any
+	local self = setmetatable({}, Endpoint) :: any
 	self._snapshots = {}
 	self._allow_write = allow_write
-	
-    self.Endpoint = Network.NetworkEndpoint.new(Network, u8id, tag, SCHEMA, {
-        BATCH_LIMIT = 0,
-        EXPECT = nil,
-        STRICT = false,
-    })
+
+	self.Endpoint = Network.NetworkEndpoint.new(Network, u8id, tag, SCHEMA, {
+		BATCH_LIMIT = 0,
+		EXPECT = nil,
+		STRICT = false,
+	})
 	self.Registry = Registry
-	
+
 	self.OnReceive = LemonSignal.new()
 
-    if IsServer then
-        self:_server_init()
-    else
-        self:_client_init()
-    end
+	if IsServer then
+		self:_server_init()
+	else
+		self:_client_init()
+	end
 
-    return self
+	return self
 end
 
 function Endpoint._resolve(self: self, Target: Player?): Registry
@@ -53,14 +55,14 @@ function Endpoint._resolve(self: self, Target: Player?): Registry
 			return sub
 		end
 	end
-	
-	return self.Registry:: Registry
+
+	return self.Registry :: Registry
 end
 
 function Endpoint._send_initial(self: self, Client: Player?)
 	local registry = if IsServer then self:_resolve(Client) else self.Registry
 	local initial_commit = DeltaCompress.diffImmutable(nil, registry)
-	
+
 	if IsServer then
 		self.Endpoint:FireClient(Client, initial_commit)
 	elseif not IsServer then
@@ -71,7 +73,7 @@ end
 function Endpoint._apply_delta(self: self, Delta: buffer, Origin: Player)
 	local registry = self:_resolve(Origin)
 	local diff = DeltaCompress.applyImmutable(registry, Delta)
-	
+
 	for k, v in pairs(diff) do
 		registry[k] = v
 	end
@@ -86,11 +88,11 @@ function Endpoint._client_init(self: self)
 		if not self._allow_write then
 			return
 		end
-		
+
 		self:_apply_delta(delta, nil)
 		self.OnReceive:Fire()
 	end)
-	
+
 	self:_send_initial()
 end
 
@@ -103,12 +105,12 @@ function Endpoint._server_init(self: self)
 		if not self._allow_write then
 			return
 		end
-		
+
 		self:_apply_delta(Delta, Origin)
 		self.OnReceive:Fire()
 	end)
-	
-    Players.PlayerAdded:Connect(function(...)
+
+	Players.PlayerAdded:Connect(function(...)
 		self:_send_initial(...)
 	end)
 	Players.PlayerRemoving:Connect(function(...)
@@ -119,7 +121,7 @@ end
 function Endpoint._local_push(self: self, Target: any)
 	local player = if typeof(Target) == "Instance" and Target:IsA("Player") then Target else nil
 	local registry = self:_resolve(player)
-	
+
 	local diff, old = DeltaCompress.diffMutable(self._snapshots[Target], registry)
 
 	if not diff then
@@ -135,6 +137,16 @@ function Endpoint._local_push(self: self, Target: any)
 	end
 end
 
+--[=[
+@within ReplicatedRegistry
+
+Waits until the registry is updated.
+
+- Timout: Total time the function can run for 
+- Tries: Maxiumum amount of attempts to fetch
+- Sleep: Amount of time it will stall before resuming the next check cycle
+
+]=]
 function Endpoint.PromiseFilledRegistry(self: self, Timeout: number, Tries: number, Sleep: number)
 	return Promise.retryWithDelay(function()
 		return Promise.new(function(resolve, reject)
@@ -155,16 +167,29 @@ function Endpoint.PromiseFilledRegistry(self: self, Timeout: number, Tries: numb
 	end, Tries, Sleep):awaitStatus()
 end
 
+--[=[
+@within ReplicatedRegistry
+Sync's the server's registry with the client's one 
+
+@client
+]=]
 function Endpoint.Fetch(self: self)
 	self.Endpoint:FireServer(nil)
 end
 
-function Endpoint.Push(self: self, Targets: {Player}?)
+--[=[
+@within ReplicatedRegistry
+Resync's the registry from the orgin realm to the other. Client -> Server, Server -> Client(s)
+
+@server
+@client
+]=]
+function Endpoint.Push(self: self, Targets: { Player }?)
 	if not IsServer then
 		self:_local_push("SERVER")
 		return
 	end
-	
+
 	local list = Targets or Players:GetPlayers()
 	for _, player in ipairs(list) do
 		self:_local_push(player)
@@ -174,14 +199,16 @@ end
 type Network = any
 
 export type Registry = CommonTypes.Dictionary<any, any>
+--- @within ReplicatedRegistry
+--- @type Registry Dictionary<any, any>
 
 export type Endpoint = {
-	_snapshots: {[Player]: any},
+	_snapshots: { [Player]: any },
 	_allow_write: boolean,
-	
+
 	Endpoint: any,
-	
-	Registry: {[Player]: Registry} | Registry,
+
+	Registry: { [Player]: Registry } | Registry,
 	OnReceive: any,
 } & typeof(Endpoint)
 type self = Endpoint

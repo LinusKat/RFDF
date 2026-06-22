@@ -1,0 +1,15 @@
+title = "RFDF"
+gitRepoUrl = "https://github.com/LinusKat/RFDF"
+gitSourceBranch = "main"
+changelog = true
+autoSectionPath = "src"
+
+
+[home]
+enabled = true
+includeReadme = true
+
+[footer]
+copyright = "Copyright © 2026 LinusKat. Built with Moonwave"
+
+

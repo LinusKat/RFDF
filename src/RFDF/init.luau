@@ -119,18 +119,29 @@ local function LoggingUniformWhitespace(str: string, max: number)
 end
 
 -- // PUBLIC
+--[=[
+	@class RFDF
+	
+]=]
+
 local RFDF = {}
 RFDF.__index = RFDF
 
+--[=[
+	Creates an RFDF instance.
+
+	@return RFDF
+
+]=]
 function RFDF.root()
-	local self = setmetatable({}, RFDF):: self
+	local self = setmetatable({}, RFDF) :: self
 	self._issues = {}
 
 	self._log_stack = {}
 
 	self._intialized = false
 	self._killed = false
-	
+
 	self.Iris = Iris
 
 	return self
@@ -150,31 +161,38 @@ function RFDF._initialize_network_folder(self: self, folder)
 	local function GetEndpointFromArgs(Data: any): AnyEndpoint
 		local is_replicated_registry = not Data.Schema and not Data.Timeout
 		local is_remote_function = Data.Timeout
-		
+
 		if is_replicated_registry then
 			local local_allow_write = IsServer and Data.ServerAllowWrite or Data.ClientAllowWrite
-			return self.ReplicatedRegistryEndpoint.new(self.Network, {}, Data.u8id, Data.Tag, local_allow_write):: any
+			return self.ReplicatedRegistryEndpoint.new(self.Network, {}, Data.u8id, Data.Tag, local_allow_write) :: any
 		elseif is_remote_function then
-			return self.RemoteFunctionEndpoint.new(self.Network, Data.u8id, Data.Tag, Data.RequestSchema, Data.ReplySchema, Data.Timeout):: any
+			return self.RemoteFunctionEndpoint.new(
+				self.Network,
+				Data.u8id,
+				Data.Tag,
+				Data.RequestSchema,
+				Data.ReplySchema,
+				Data.Timeout
+			) :: any
 		else
-			local NetworkEndpoint = self.NetworkEndpoint::any
-			return NetworkEndpoint.new(self.Network, Data.u8id, Data.Tag, Data.Schema, {}):: any
+			local NetworkEndpoint = self.NetworkEndpoint :: any
+			return NetworkEndpoint.new(self.Network, Data.u8id, Data.Tag, Data.Schema, {}) :: any
 		end
 	end
-	
+
 	local function Require(current: Instance, cd: string)
 		for _, child in current:GetChildren() do
 			local childPath = string.format("%s/%s", cd, child.Name)
 
 			if child:IsA("ModuleScript") then
-				local args = require(child):: any
+				local args = require(child) :: any
 				raw_network[childPath] = GetEndpointFromArgs(args)
 			elseif #child:GetChildren() > 0 then
 				Require(child, childPath)
 			end
 		end
 	end
-	
+
 	return Require(script.Network, "")
 end
 
@@ -183,15 +201,15 @@ function RFDF._initialize_client(self: self & ClientExposed)
 
 	self.Network = ClientNetwork.new()
 
-	self.NetworkEndpoint = self.Network.NetworkEndpoint:: any
-	self.ReplicatedRegistryEndpoint = ReplicatedRegistry:: any
-	self.RemoteFunctionEndpoint = RemoteFunction:: any
+	self.NetworkEndpoint = self.Network.NetworkEndpoint :: any
+	self.ReplicatedRegistryEndpoint = ReplicatedRegistry :: any
+	self.RemoteFunctionEndpoint = RemoteFunction :: any
 
 	self.Iris.Init()
 
 	local interface = Interface.new(self)
 	interface:Init()
-	
+
 	if IsStudio then
 		self.Iris:Connect(function()
 			debug.profilebegin("rfdf/interface")
@@ -206,21 +224,18 @@ function RFDF._intialize_server(self: self & ServerExposed)
 
 	self.Network = ServerNetwork.new()
 
-	self.NetworkEndpoint = self.Network.NetworkEndpoint:: any
-	self.ReplicatedRegistryEndpoint = ReplicatedRegistry:: any
-	self.RemoteFunctionEndpoint = RemoteFunction:: any
+	self.NetworkEndpoint = self.Network.NetworkEndpoint :: any
+	self.ReplicatedRegistryEndpoint = ReplicatedRegistry :: any
+	self.RemoteFunctionEndpoint = RemoteFunction :: any
 end
 
 function RFDF._register_service(self: self, Name: string, tbl: CommonServiceFunctions)
 	assert(typeof(tbl) == "table", FormatDirtyLog(ERROR_MESSAGES.REGISTER_SERVICE_NOT_TABLE))
-	assert(
-		typeof(tbl.new) == "function",
-		FormatDirtyLog(ERROR_MESSAGES.REGISTER_SERVICE_MISSING_START_FUNCTION)
-	)
+	assert(typeof(tbl.new) == "function", FormatDirtyLog(ERROR_MESSAGES.REGISTER_SERVICE_MISSING_START_FUNCTION))
 
-	local started_service = tbl.new{RFDF = self}
+	local started_service = tbl.new({ RFDF = self })
 	raw_middleware[Name] = started_service
-	
+
 	return started_service
 end
 
@@ -229,7 +244,7 @@ function RFDF._init_service(self: self, started_service: CommonServiceFunctions)
 	if typeof(started_service.Init) ~= "function" then
 		return self:Log(ERROR_MESSAGES.SERVICE_MISSING_INIT_FUNCTION, "PRINT", "RFDF")
 	end
-	
+
 	started_service:Init()
 end
 
@@ -263,6 +278,12 @@ function RFDF._load_modules_from_array(self: self, tbl: any)
 	end
 end
 
+--[=[
+	Initializes RFDF for client or server
+	
+	@return ()
+
+]=]
 function RFDF.Init(self: self)
 	const profile = Benchmark()
 
@@ -281,36 +302,106 @@ function RFDF.Init(self: self)
 	self._init_time = os.clock()
 
 	self:Log(string.format("%s", profile()), "PRINT", "rfdf/root/init")
-	self:Log(string.format("dump network endpoints %s", TableToString.TableToString(raw_network, nil, nil, nil, RFDF_SETTINGS.LOG_VERBOSE_NETWORK_DUMP_DEPTH)), "PRINT", "rfdf/root/init")
+	self:Log(
+		string.format(
+			"dump network endpoints %s",
+			TableToString.TableToString(raw_network, nil, nil, nil, RFDF_SETTINGS.LOG_VERBOSE_NETWORK_DUMP_DEPTH)
+		),
+		"PRINT",
+		"rfdf/root/init"
+	)
 end
 
 -- // SERVICE FUNCTIONS
+
+--[=[
+	Registers a service to RFDF, and requires it.
+	@param Module ModuleScript -- Service module to register and start
+ 
+	@return Promise<CommonServiceFunctions>
+
+	```lua
+	self.RFDF:RegisterService(ServiceModuleScript)
+	```
+
+]=]
 function RFDF.RegisterService(self: self, Module: ModuleScript)
 	--self:Log(string.format("Attempting to create service instance: %s", Module.Name), "PRINT", "RFDF")
 	return Promise.new(function(resolve)
 		const profile = Benchmark()
 		local started_service = self:_register_service(Module.Name, require(Module) :: CommonServiceFunctions)
-		
-		self:Log(string.format(`CREATE -- %s %s && %s`, Module.Name, LoggingUniformWhitespace(Module.Name, RFDF_SETTINGS.LOG_VERBOSE_WHITESPACE_MAX), profile()), "PRINT", "RFDF")
+
+		self:Log(
+			string.format(
+				`CREATE -- %s %s && %s`,
+				Module.Name,
+				LoggingUniformWhitespace(Module.Name, RFDF_SETTINGS.LOG_VERBOSE_WHITESPACE_MAX),
+				profile()
+			),
+			"PRINT",
+			"RFDF"
+		)
 		-- // CREATE -- SERVICE_NAME WHITESPACE_HERE && BENCHMARK WHITESPACE_HERE
-		
+
 		resolve(started_service)
 	end)
 end
 
+--[=[
+	Runs initialization functions for the Service.
+	@param name string 
+	@param started_service CommonServiceFunctions
+ 
+	@return Promise
+
+	```lua
+	self.RFDF:RegisterService(ServiceModuleScript)
+
+	local service = self.RFDF:GetService("ServiceKey")
+
+	self.RFDF:InitializeSerivce("ServiceKey", service)
+	```
+
+]=]
 function RFDF.InitializeService(self: self, name: string, started_service: CommonServiceFunctions)
 	--self:Log(string.format("Attempting to initialize service instance: %s", name), "PRINT", "RFDF")
 	return Promise.new(function(resolve)
 		const profile = Benchmark()
 		self:_init_service(started_service)
-		
-		self:Log(string.format(`INIT -- %s %s && %s`, name, LoggingUniformWhitespace(name, RFDF_SETTINGS.LOG_VERBOSE_WHITESPACE_MAX), profile()), "PRINT", "RFDF")
+
+		self:Log(
+			string.format(
+				`INIT -- %s %s && %s`,
+				name,
+				LoggingUniformWhitespace(name, RFDF_SETTINGS.LOG_VERBOSE_WHITESPACE_MAX),
+				profile()
+			),
+			"PRINT",
+			"RFDF"
+		)
 		-- // CREATE -- SERVICE_NAME WHITESPACE_HERE && BENCHMARK
 
 		resolve()
 	end)
 end
 
+--[=[
+	Runs the destructor method :Kill() for a given service
+	@param started_service CommonServiceFunctions
+ 
+	@return Promise
+
+	```lua
+	self.RFDF:RegisterService(ServiceModuleScript)
+
+	local service = self.RFDF:GetService("ServiceKey")
+
+	self.RFDF:InitializeSerivce("ServiceKey", service)
+
+	self.RFDF:KillService(service)
+	```
+
+]=]
 function RFDF.KillService(self: self, started_service: CommonServiceFunctions)
 	return Promise.new(function(resolve)
 		started_service:Kill()
@@ -318,56 +409,160 @@ function RFDF.KillService(self: self, started_service: CommonServiceFunctions)
 	end)
 end
 
+--[=[
+Loads services from a folder
+
+
+```lua
+local root = RFDF.root()
+root:Init()
+
+root:LoadServicesFromFolder(myFolderContainingServices)
+```
+
+]=]
 function RFDF.LoadServicesFromFolder(self: self, Folder: Folder)
 	self:_load_modules_from_array(Folder:GetChildren())
 end
 
-function RFDF.LoadServicesFromArray(self: self, tbl: {ModuleScript})
+--[=[
+Loads services from an array
+
+```lua
+const SOURCE = script
+
+const PRIORITY_LOAD: { ModuleSCript } = {
+	[1] = SOURCE.myManager
+}
+
+for _, v: any in SOURCE:GetChildren() do
+	if not table.find(PRIORITY_LOAD, v) then 
+		table.insert(PRIORITY_LOAD, v)
+	end
+end
+
+local root = RFDF.root()
+root:Init()
+
+root:LoadServicesFromArray(myFolderContainingServices)
+```
+
+]=]
+function RFDF.LoadServicesFromArray(self: self, tbl: { ModuleScript })
 	self:_load_modules_from_array(tbl)
 end
 
+--[=[
+
+Runs [RFDF.KillService] on all registered services and flags your RFDF instance as killed.
+
+```lua
+local root = RFDF.root()
+root:Init()
+
+game.Close:Connect(function()
+	root:KIllRFDFInstance()
+end)
+```
+
+]=]
 function RFDF.KillRFDFInstance(self: self)
 	self:Log("RFDF Instance Killed", "ERROR")
-	
+
 	for _, service: CommonServiceFunctions in raw_middleware do
-		self:KillService(service)
-			:timeout(RFDF_SETTINGS.KILL_SERVICE_TIMEOUT)
-			:catch(function(err)
-				self:Log(tostring(err), "ERROR", "RFDF")
-			end)
+		self:KillService(service):timeout(RFDF_SETTINGS.KILL_SERVICE_TIMEOUT):catch(function(err)
+			self:Log(tostring(err), "ERROR", "RFDF")
+		end)
 	end
-	
+
 	self._killed = true
 	self.Iris.Shutdown()
 end
 
+--[=[
+
+Returns the registered service from it's key.
+
+```lua
+self.RFDF:RegisterService(ServiceModuleScript)
+
+local service = self.RFDF:GetService("ServiceKey")
+```
+@return (CommonService Functions & any)?
+]=]
 function RFDF.GetService(self: self, Key: string): (CommonServiceFunctions & any)?
 	local index = raw_middleware[Key]
 	assert(index, string.format("Couldn't find service @ %s", Key))
-	
+
 	return index
 end
 
+--[=[
+Returns the index for a registered endpoint
+
+```lua
+
+self.myEndpoint = self.RFDF:RequireEndpoint("/myEndpoint")
+
+```
+
+@return AnyEndpoint
+]=]
 function RFDF.RequireEndpoint(self: self, Path: string): AnyEndpoint
 	local index = raw_network[Path]
 	assert(index, string.format("Couldn't find endpoint @ %s", Path))
-	
+
 	return index
 end
 
 -- // Utility functions
+
+--[=[
+Sets a setting for:
+
+```lua
+const RFDF_SETTINGS = {
+	LOAD_SERVICE_TIMEOUT = 15,
+	KILL_SERVICE_TIMEOUT = 2,
+
+	LOG_HISTORY = 1000,
+	LOG_VERBOSE = true,
+	LOG_VERBOSE_WHITESPACE_MAX = 25,
+	LOG_VERBOSE_NETWORK_DUMP_DEPTH = 1,
+}
+```
+]=]
 function RFDF.SetSetting(self: self, k: string, v: any)
 	RFDF_SETTINGS[k] = v
 end
 
+--[=[
+Returns the time it took to initialize RFDF
+
+@return number?
+]=]
 function RFDF.GetInitTime(self: self)
 	return self._init_time
 end
 
+--[=[
+Clears the current log stack
+]=]
 function RFDF.ClearLogs(self: self)
 	table.clear(self._log_stack)
 end
 
+--[=[
+Creates a log for the output 
+
+```lua
+local root = RFDF.root()
+
+root:Log("I am logging somthing", "WARNING", "init.client.luau", false)
+```
+```
+
+]=]
 function RFDF.Log(self: self, info: string, color: LogColor?, origin: string?, is_issue: boolean?, datetime: string?)
 	assert(typeof(info) == "string", ERROR_MESSAGES.LOG_INTERNAL_STRING_TYPE_FAULTY)
 
@@ -388,7 +583,7 @@ function RFDF.Log(self: self, info: string, color: LogColor?, origin: string?, i
 		info = info,
 		verbose_log = string.format("%s > %s", origin or "", info),
 
-		color = log_color:: Color3,
+		color = log_color :: Color3,
 	}
 
 	if #self._log_stack >= RFDF_SETTINGS.LOG_HISTORY then
@@ -396,7 +591,7 @@ function RFDF.Log(self: self, info: string, color: LogColor?, origin: string?, i
 	end
 
 	table.insert(self._log_stack, log)
-	
+
 	if RFDF_SETTINGS.LOG_VERBOSE then
 		self:_log_verbose(color, log.verbose_log)
 	end
@@ -407,31 +602,38 @@ function RFDF.Log(self: self, info: string, color: LogColor?, origin: string?, i
 	end
 end
 
---[[
-	Sugar for :Log info "PRINT" origin
-]]
+--[=[
+Sugar for :Log info "PRINT" origin
+]=]
 function RFDF.Print(self: self, info: string, origin: string?)
 	self:Log(info, "PRINT", origin)
 end
 
---[[
-	Sugar for :Log info "WARNING" origin
-]]
+--[=[
+Sugar for :Log info "WARN" origin
+]=]
 function RFDF.Warn(self: self, info: string, origin: string?)
 	self:Log(info, "WARNING", origin)
 end
 
---[[
-	Sugar for :Log info "ERROR" origin is_issue
-]]
+--[=[
+Sugar for :Log info "ERROR" origin
+]=]
 function RFDF.Error(self: self, info: string, origin: string?, is_issue: boolean?)
 	self:Log(info, "ERROR", origin, is_issue)
 end
 
 -- // PRIVATE TYPES
 type StartupData = CommonTypes.StartupData
+--- @within RFDF
+--- @type StartupData {RFDF: any}
+
 type CommonServiceType = CommonTypes.CommonServiceType
+
 type CommonServiceFunctions = CommonTypes.CommonServiceFunctions
+--- @within RFDF
+--- @type CommonServiceFunctions {new: newCallback, Init: InitCallback, Kill: KillCallback} & CommonServiceType
+
 type Middleware = CommonTypes.Middleware
 
 type Iris = IrisTypes.Iris
@@ -444,7 +646,13 @@ export type ServerNetworkEndpoint = ServerNetwork.NetworkEndpoint
 export type ClientNetworkEndpoint = ClientNetwork.NetworkEndpoint
 export type RemoteFunctionEndpoint = RemoteFunction.Endpoint
 
-export type AnyEndpoint = ReplicatedRegistryEndpoint | ServerNetworkEndpoint | ClientNetworkEndpoint | RemoteFunctionEndpoint
+--- @within RFDF
+--- @type AnyEndpoint ReplicatedRegistryEndpoint | ServerNetworkEndpoint | ClientNetworkEndpoint | RemoteFunctionEndpoint
+export type AnyEndpoint =
+	ReplicatedRegistryEndpoint
+	| ServerNetworkEndpoint
+	| ClientNetworkEndpoint
+	| RemoteFunctionEndpoint
 
 export type ClientExposed = {
 	Network: ClientNetwork.Network,
@@ -456,6 +664,9 @@ export type ServerExposed = {
 }
 
 export type LogColor = Color3 | "ERROR" | "WARNING" | "PRINT" | string
+--- @within RFDF
+--- @type LogColor Color3 | "ERROR" | "WARNING" | "PRINT" | string
+
 export type Log = {
 	timestamp: number,
 	datetime: string,
@@ -468,6 +679,8 @@ export type Log = {
 
 	color: Color3,
 }
+--- @within RFDF
+--- @type Log {timestamp: number, datetime: string, is_issue: boolean, origin: string, info: string, verbose_log: string, color: Color3}
 
 export type RFDF = {
 	_issues: { Log },
@@ -477,7 +690,7 @@ export type RFDF = {
 	_killed: boolean,
 
 	_init_time: number?,
-	
+
 	Network: ClientNetwork.Network | ServerNetwork.Network,
 	NetworkEndpoint: ServerNetworkEndpoint | ClientNetworkEndpoint,
 	ReplicatedRegistryEndpoint: ReplicatedRegistryEndpoint,
@@ -485,6 +698,9 @@ export type RFDF = {
 
 	Iris: Iris,
 } & typeof(RFDF)
+--- @within RFDF
+--- @type RFDF typeof(RFDF) & {Network: ClientNetwork.Network | ServerNetwork.Network, NetworkEndpoint: ServerNetworkEndpoint | ClientNetworkEndpoint, ReplicatedRegistryEndpoint: ReplicatedRegistryEndpoint, RemoteFunctionEndpoint: RemoteFunctionEndpoint}
+
 type self = RFDF
 
 return RFDF
